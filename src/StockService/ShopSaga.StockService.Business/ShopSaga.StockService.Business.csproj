@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ShopSaga.StockService.Repository\ShopSaga.StockService.Repository.csproj" />
+    <ProjectReference Include="..\ShopSaga.StockService.ClientHttp\ShopSaga.StockService.ClientHttp.csproj" />
+    <ProjectReference Include="..\ShopSaga.StockService.Shared\ShopSaga.StockService.Shared.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
