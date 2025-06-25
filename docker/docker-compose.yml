@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # Database services
@@ -87,7 +86,7 @@ services:
     ports:
       - "5001:80"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=order-db;Database=OrderDb;User Id=sa;Password=admin;TrustServerCertificate=True
+      - ConnectionStrings__OrderServiceDb=Server=order-db;Database=OrderService;User Id=sa;Password=admin;TrustServerCertificate=True
       - Kafka__BootstrapServers=kafka:29092
     networks:
       - shop-network

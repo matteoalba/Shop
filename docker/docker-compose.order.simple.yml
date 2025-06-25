@@ -1,0 +1,50 @@
+services:
+  # Database service
+  order-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Pass@word1
+    ports:
+      - "1433:1433"
+    volumes:
+      - order-data:/var/opt/mssql
+    networks:
+      - shop-network
+    restart: always
+
+  # Order microservice
+  order-service:
+    build:
+      context: ../src/OrderService
+      dockerfile: ShopSaga.OrderService.WebApi/Dockerfile
+    ports:
+      - "5001:8080"
+    environment:
+      - ConnectionStrings__OrderServiceDb=Server=order-db;Database=OrderDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_HTTP_PORTS=8080
+    networks:
+      - shop-network
+    restart: always
+    depends_on:
+      - order-db
+
+  # Adminer - Database management UI
+  adminer:
+    image: adminer:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - shop-network
+    depends_on:
+      - order-db
+
+volumes:
+  order-data:
+
+networks:
+  shop-network:
+    driver: bridge
