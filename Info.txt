@@ -125,3 +125,17 @@ Business: Decide cosa deve fare effettivamente l'applicazione, e può utilizzare
 Shared: Sono le entità/classi utilizzabili da tutti.
 WebApi: Controller per creare le API.
 ClientHttp: Gestisce la comunicazione sincrona con gli altri microservizi.
+
+
+
+
+
+
+Problemi:
+
+- 1: In updateOrderAsync mi sono ritrovato nel problema in cui:
+    Se includi un item con un ID esistente nella richiesta, viene aggiornato
+    Se includi un item con ID = 0, viene creato un nuovo item
+    Se non includi un item esistente, viene rimosso dall'ordine
+Lasciandolo cosi il client deve conoscere e inviare tutti gli items, anche quelli che non intende modificare e aumenta il rischio
+di rimuovere items per errore.

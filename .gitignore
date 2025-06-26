@@ -1,3 +1,2 @@
-src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0
-src\OrderService\ShopSaga.OrderService.ClientHttp\obj
-src\OrderService\ShopSaga.OrderService.Business\bin
+**/bin/
+**/obj/

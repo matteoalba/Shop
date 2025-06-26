@@ -6,15 +6,7 @@ using ShopSaga.OrderService.Business;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
-builder.Services.AddDbContext<OrderDbContext>(options => 
-    options.UseSqlServer("name=ConnectionStrings:OrderServiceDb", 
-    sqlServerOptionsAction: sqlOptions => 
-    {
-        sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null);
-    }));
+builder.Services.AddDbContext<OrderDbContext>(options => options.UseSqlServer("name=ConnectionStrings:OrderServiceDb"));
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ISagaStateRepository, SagaStateRepository>();
 builder.Services.AddScoped<ISagaOrchestrator, SagaOrchestrator>();
@@ -37,13 +29,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
-
-// Ensure database is created
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    dbContext.Database.EnsureCreated();
-}
 
 app.Run();
 
