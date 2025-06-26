@@ -1,40 +1,49 @@
-var builder = WebApplication.CreateBuilder(args);
+using Microsoft.EntityFrameworkCore;
+using ShopSaga.OrderService.Repository;
+using ShopSaga.OrderService.Repository.Abstraction;
+using ShopSaga.OrderService.Business.Abstraction;
+using ShopSaga.OrderService.Business;
 
-// Add services to the container.
-// Da mettere dbContext, repository, services, etc.
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+builder.Services.AddDbContext<OrderDbContext>(options => 
+    options.UseSqlServer("name=ConnectionStrings:OrderServiceDb", 
+    sqlServerOptionsAction: sqlOptions => 
     {
-        Title = "ShopSaga Order Service API",
-        Version = "v1",
-        Description = "API for managing orders and orchestrating the SAGA pattern",
-        Contact = new Microsoft.OpenApi.Models.OpenApiContact
-        {
-            Name = "ShopSaga Team"
-        }
-    });
-});
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    }));
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<ISagaStateRepository, SagaStateRepository>();
+builder.Services.AddScoped<ISagaOrchestrator, SagaOrchestrator>();
+builder.Services.AddScoped<IOrderBusiness, OrderBusiness>();
+
+
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction()) // Enable Swagger in production for the example
+if (app.Environment.IsDevelopment()) 
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ShopSaga Order Service API v1");
-        c.RoutePrefix = string.Empty; // Serve Swagger UI at the app's root
-    });
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-app.UseRouting();
 app.UseAuthorization();
 app.MapControllers();
+
+// Ensure database is created
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    dbContext.Database.EnsureCreated();
+}
 
 app.Run();
 

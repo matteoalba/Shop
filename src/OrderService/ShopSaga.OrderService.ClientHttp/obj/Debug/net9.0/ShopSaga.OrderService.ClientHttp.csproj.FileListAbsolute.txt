@@ -1,0 +1,15 @@
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0\ShopSaga.OrderService.ClientHttp.deps.json
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0\ShopSaga.OrderService.ClientHttp.dll
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0\ShopSaga.OrderService.ClientHttp.pdb
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0\ShopSaga.OrderService.Shared.dll
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\bin\Debug\net9.0\ShopSaga.OrderService.Shared.pdb
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.csproj.AssemblyReference.cache
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.AssemblyInfoInputs.cache
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.AssemblyInfo.cs
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.csproj.CoreCompileInputs.cache
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.4CC05B07.Up2Date
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.dll
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\refint\ShopSaga.OrderService.ClientHttp.dll
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ShopSaga.OrderService.ClientHttp.pdb
+C:\Users\03mat\Desktop\Shop\src\OrderService\ShopSaga.OrderService.ClientHttp\obj\Debug\net9.0\ref\ShopSaga.OrderService.ClientHttp.dll

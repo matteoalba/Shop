@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "ShopSaga.OrderService.ClientHttp/1.0.0": {
+        "dependencies": {
+          "ShopSaga.OrderService.Shared": "1.0.0"
+        },
+        "runtime": {
+          "ShopSaga.OrderService.ClientHttp.dll": {}
+        }
+      },
+      "ShopSaga.OrderService.Shared/1.0.0": {
+        "runtime": {
+          "ShopSaga.OrderService.Shared.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "ShopSaga.OrderService.ClientHttp/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "ShopSaga.OrderService.Shared/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

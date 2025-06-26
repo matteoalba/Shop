@@ -15,7 +15,7 @@ GO
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Orders' AND xtype='U')
 BEGIN
     CREATE TABLE Orders (
-        Id UNIQUEIDENTIFIER PRIMARY KEY,
+        Id INT IDENTITY(1,1) PRIMARY KEY,
         CustomerId UNIQUEIDENTIFIER NOT NULL,
         TotalAmount DECIMAL(18, 2) NOT NULL,
         Status NVARCHAR(50) NOT NULL,
@@ -29,8 +29,8 @@ GO
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OrderItems' AND xtype='U')
 BEGIN
     CREATE TABLE OrderItems (
-        Id UNIQUEIDENTIFIER PRIMARY KEY,
-        OrderId UNIQUEIDENTIFIER NOT NULL,
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        OrderId INT NOT NULL,
         ProductId UNIQUEIDENTIFIER NOT NULL,
         Quantity INT NOT NULL,
         UnitPrice DECIMAL(18, 2) NOT NULL,
@@ -38,18 +38,18 @@ BEGIN
     );
 END
 GO
-
--- SagaState table for tracking the SAGA state
+-- Saga States tabella per gestire lo stato delle SAGA
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SagaStates' AND xtype='U')
 BEGIN
     CREATE TABLE SagaStates (
-        Id UNIQUEIDENTIFIER PRIMARY KEY,
-        OrderId UNIQUEIDENTIFIER NOT NULL,
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        OrderId INT NOT NULL,
         Status NVARCHAR(50) NOT NULL,
         PaymentStatus NVARCHAR(50),
         StockStatus NVARCHAR(50),
         CreatedAt DATETIME2 NOT NULL,
-        UpdatedAt DATETIME2 NOT NULL
+        UpdatedAt DATETIME2 NOT NULL,
+        CONSTRAINT FK_SagaStates_Orders FOREIGN KEY (OrderId) REFERENCES Orders(Id) ON DELETE CASCADE
     );
 END
 GO
