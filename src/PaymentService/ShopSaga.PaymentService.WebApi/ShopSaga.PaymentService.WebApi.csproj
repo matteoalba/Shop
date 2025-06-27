@@ -1,19 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="2.10.1" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.1" />
+    <PackageReference Include="Confluent.Kafka" Version="2.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ShopSaga.PaymentService.Business\ShopSaga.PaymentService.Business.csproj" />
+    <ProjectReference Include="..\ShopSaga.PaymentService.Repository\ShopSaga.PaymentService.Repository.csproj" />
     <ProjectReference Include="..\ShopSaga.PaymentService.Shared\ShopSaga.PaymentService.Shared.csproj" />
   </ItemGroup>
 

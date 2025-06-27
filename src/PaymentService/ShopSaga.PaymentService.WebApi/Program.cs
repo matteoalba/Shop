@@ -1,38 +1,37 @@
-var builder = WebApplication.CreateBuilder(args);
+using Microsoft.EntityFrameworkCore;
+using ShopSaga.PaymentService.Repository;
+using ShopSaga.PaymentService.Repository.Abstraction;
+using ShopSaga.PaymentService.Business;
+using ShopSaga.PaymentService.Business.Abstraction;
 
-// Add services to the container.
-// Da mettere dbContext, repository, services, etc.
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
+builder.Services.AddDbContext<PaymentDbContext>(options => options.UseSqlServer("name=ConnectionStrings:PaymentServiceDb"));
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IPaymentBusiness, PaymentBusiness>();
+
+
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "ShopSaga Payment Service API",
-        Version = "v1",
-        Description = "API for processing payments in the e-commerce system",
-        Contact = new Microsoft.OpenApi.Models.OpenApiContact
-        {
-            Name = "ShopSaga Team"
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Ensure database is created and migrated
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+    context.Database.EnsureCreated();
+}
+
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction()) // Enable Swagger in production for the example
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ShopSaga Payment Service API v1");
-        c.RoutePrefix = string.Empty; // Serve Swagger UI at the app's root
-    });
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-app.UseRouting();
 app.UseAuthorization();
 app.MapControllers();
 

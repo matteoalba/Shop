@@ -137,5 +137,16 @@ Problemi:
     Se includi un item con un ID esistente nella richiesta, viene aggiornato
     Se includi un item con ID = 0, viene creato un nuovo item
     Se non includi un item esistente, viene rimosso dall'ordine
-Lasciandolo cosi il client deve conoscere e inviare tutti gli items, anche quelli che non intende modificare e aumenta il rischio
+Lasciandolo cosi il client deve conoscere e inviare tutti gli items, anche quelli che non intende modificare e aumenta il rischio 
 di rimuovere items per errore.
+
+TODO:
+
+ - StockService
+ - Una volta finito StockService, creare tutti i ClientHttp.
+ - Una volta fatto i clientHttp, guardare come collegare tutti i microservizi tra loro.
+ - Implementare kafka.
+ - Controllare infine se sono presenti transazioni di avanzamento e di compensazione per portare a termine la transazione distribuita o effettuarne il rollback
+ - Implementare anche la transazione pivot e una transazione ripetibile (hint: background service).
+
+ 

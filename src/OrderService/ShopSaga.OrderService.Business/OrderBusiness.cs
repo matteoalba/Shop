@@ -181,18 +181,6 @@ namespace ShopSaga.OrderService.Business
             }
         }
 
-        public async Task<OrderDTO> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default)
-        {
-            // TODO: Implementazione completa
-            return new OrderDTO();
-        }
-
-        public async Task<SagaStateDTO> StartOrderProcessingAsync(int orderId, CancellationToken cancellationToken = default)
-        {
-            // TODO: Implementazione completa
-            return new SagaStateDTO();
-        }
-
         private OrderDTO MapOrderToDto(Order order)
         {
             if (order == null) return null;
@@ -213,6 +201,18 @@ namespace ShopSaga.OrderService.Business
                     UnitPrice = item.UnitPrice
                 }).ToList() ?? new List<OrderItemDTO>()
             };
+        }
+
+        public async Task<OrderDTO> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default)
+        {
+            // TODO: Implementazione completa
+            return new OrderDTO();
+        }
+
+        public async Task<SagaStateDTO> StartOrderProcessingAsync(int orderId, CancellationToken cancellationToken = default)
+        {
+            // TODO: Implementazione completa
+            return new SagaStateDTO();
         }
     }
 }

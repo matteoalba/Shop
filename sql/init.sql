@@ -71,14 +71,26 @@ GO
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Payments' AND xtype='U')
 BEGIN
     CREATE TABLE Payments (
-        Id UNIQUEIDENTIFIER PRIMARY KEY,
-        OrderId UNIQUEIDENTIFIER NOT NULL,
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        OrderId INT NOT NULL,
         Amount DECIMAL(18, 2) NOT NULL,
         Status NVARCHAR(50) NOT NULL,
         PaymentMethod NVARCHAR(50) NOT NULL,
         TransactionId NVARCHAR(100),
         CreatedAt DATETIME2 NOT NULL,
         UpdatedAt DATETIME2 NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PaymentRefund' AND xtype='U')
+BEGIN
+    CREATE TABLE PaymentRefund (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        PaymentId INT NOT NULL,
+        Amount DECIMAL(18, 2) NOT NULL,
+        Reason NVARCHAR(255) NOT NULL,
+        CONSTRAINT FK_PaymentRefund_Payments FOREIGN KEY (PaymentId) REFERENCES Payments(Id) ON DELETE CASCADE
     );
 END
 GO
