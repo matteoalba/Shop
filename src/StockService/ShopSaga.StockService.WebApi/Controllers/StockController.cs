@@ -58,6 +58,38 @@ namespace ShopSaga.StockService.WebApi.Controllers
             }
         }
 
+        [HttpGet("products/{productId}/availability")]
+        public async Task<ActionResult<bool>> CheckProductAvailability(Guid productId, [FromQuery] int quantity, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var isAvailable = await _stockBusiness.IsProductAvailableAsync(productId, quantity, cancellationToken);
+                if (quantity <= 0)
+                    return BadRequest("La quantità richiesta deve essere maggiore di zero");
+                return Ok(new { ProductId = productId, RequestedQuantity = quantity, IsAvailable = isAvailable });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel controllo disponibilità del prodotto {ProductId}", productId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        [HttpGet("products/{productId}/stock")]
+        public async Task<ActionResult<int>> GetAvailableStock(Guid productId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var stock = await _stockBusiness.GetAvailableStockAsync(productId, cancellationToken);
+                return Ok(new { ProductId = productId, AvailableStock = stock });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero dello stock per il prodotto {ProductId}", productId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
         [HttpPost("products")]
         public async Task<ActionResult<ProductDTO>> CreateProduct([FromBody] CreateProductDTO createProductDto, CancellationToken cancellationToken = default)
         {
@@ -125,41 +157,42 @@ namespace ShopSaga.StockService.WebApi.Controllers
             }
         }
 
-        [HttpGet("products/{productId}/availability")]
-        public async Task<ActionResult<bool>> CheckProductAvailability(Guid productId, [FromQuery] int quantity, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                var isAvailable = await _stockBusiness.IsProductAvailableAsync(productId, quantity, cancellationToken);
-                if (quantity <= 0)
-                    return BadRequest("La quantità richiesta deve essere maggiore di zero");
-                return Ok(new { ProductId = productId, RequestedQuantity = quantity, IsAvailable = isAvailable });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel controllo disponibilità del prodotto {ProductId}", productId);
-                return StatusCode(500, "Errore interno del server");
-            }
-        }
-
-        [HttpGet("products/{productId}/stock")]
-        public async Task<ActionResult<int>> GetAvailableStock(Guid productId, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                var stock = await _stockBusiness.GetAvailableStockAsync(productId, cancellationToken);
-                return Ok(new { ProductId = productId, AvailableStock = stock });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero dello stock per il prodotto {ProductId}", productId);
-                return StatusCode(500, "Errore interno del server");
-            }
-        }
-
         #endregion
 
         #region Gestione Stock Reservations
+
+        [HttpGet("reservations/{id}")]
+        public async Task<ActionResult<StockReservationDTO>> GetStockReservation(Guid id, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var reservation = await _stockBusiness.GetStockReservationAsync(id, cancellationToken);
+                if (reservation == null)
+                    return NotFound($"Prenotazione stock con ID {id} non trovata");
+
+                return Ok(reservation);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero della prenotazione stock {ReservationId}", id);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        [HttpGet("reservations/order/{orderId}")]
+        public async Task<ActionResult<IEnumerable<StockReservationDTO>>> GetStockReservationsByOrder(int orderId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var reservations = await _stockBusiness.GetStockReservationsByOrderAsync(orderId, cancellationToken);
+                return Ok(reservations);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero delle prenotazioni stock per l'ordine {OrderId}", orderId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
 
         [HttpPost("reservations")]
         public async Task<ActionResult<StockReservationDTO>> ReserveStock([FromBody] ReserveStockDTO reserveStockDto, CancellationToken cancellationToken = default)
@@ -217,39 +250,6 @@ namespace ShopSaga.StockService.WebApi.Controllers
             }
         }
 
-        [HttpGet("reservations/{id}")]
-        public async Task<ActionResult<StockReservationDTO>> GetStockReservation(Guid id, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                var reservation = await _stockBusiness.GetStockReservationAsync(id, cancellationToken);
-                if (reservation == null)
-                    return NotFound($"Prenotazione stock con ID {id} non trovata");
-
-                return Ok(reservation);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero della prenotazione stock {ReservationId}", id);
-                return StatusCode(500, "Errore interno del server");
-            }
-        }
-
-        [HttpGet("reservations/order/{orderId}")]
-        public async Task<ActionResult<IEnumerable<StockReservationDTO>>> GetStockReservationsByOrder(int orderId, CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                var reservations = await _stockBusiness.GetStockReservationsByOrderAsync(orderId, cancellationToken);
-                return Ok(reservations);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero delle prenotazioni stock per l'ordine {OrderId}", orderId);
-                return StatusCode(500, "Errore interno del server");
-            }
-        }
-
         [HttpPut("orders/{orderId}/reservations/confirm")]
         public async Task<ActionResult> ConfirmAllStockReservationsForOrder(int orderId, CancellationToken cancellationToken = default)
         {
@@ -302,16 +302,6 @@ namespace ShopSaga.StockService.WebApi.Controllers
                 _logger.LogError(ex, "Errore nella cancellazione di tutte le prenotazioni per l'ordine {OrderId}", orderId);
                 return StatusCode(500, "Errore interno del server");
             }
-        }
-
-        #endregion
-
-        #region Health Check
-
-        [HttpGet("health")]
-        public ActionResult GetHealth()
-        {
-            return Ok(new { Status = "Healthy", Service = "StockService", Timestamp = DateTime.UtcNow });
         }
 
         #endregion
