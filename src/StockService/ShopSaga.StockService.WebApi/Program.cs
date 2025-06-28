@@ -1,38 +1,35 @@
-var builder = WebApplication.CreateBuilder(args);
+using Microsoft.EntityFrameworkCore;
+using ShopSaga.StockService.Repository;
+using ShopSaga.StockService.Repository.Abstraction;
+using ShopSaga.StockService.Business;
+using ShopSaga.StockService.Business.Abstraction;
 
-// Add services to the container.
-// Da mettere dbContext, repository, services, etc.
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
+builder.Services.AddDbContext<StockDbContext>(options => options.UseSqlServer("name=ConnectionStrings:StockServiceDb"));
+builder.Services.AddScoped<IStockRepository, StockRepository>();
+builder.Services.AddScoped<IStockBusiness, StockBusiness>();
+
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "ShopSaga Stock Service API",
-        Version = "v1",
-        Description = "API for managing product inventory and stock operations",
-        Contact = new Microsoft.OpenApi.Models.OpenApiContact
-        {
-            Name = "ShopSaga Team"
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction()) // Enable Swagger in production for the example
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<StockDbContext>();
+    context.Database.EnsureCreated();
+}
+
+// Assicurati che il database sia creato in development
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ShopSaga Stock Service API v1");
-        c.RoutePrefix = string.Empty; // Serve Swagger UI at the app's root
-    });
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-app.UseRouting();
 app.UseAuthorization();
 app.MapControllers();
 

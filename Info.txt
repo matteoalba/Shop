@@ -140,6 +140,9 @@ Problemi:
 Lasciandolo cosi il client deve conoscere e inviare tutti gli items, anche quelli che non intende modificare e aumenta il rischio 
 di rimuovere items per errore.
 
+- 2: Capire il delete nello stock.
+
+
 TODO:
 
  - StockService
@@ -148,5 +151,6 @@ TODO:
  - Implementare kafka.
  - Controllare infine se sono presenti transazioni di avanzamento e di compensazione per portare a termine la transazione distribuita o effettuarne il rollback
  - Implementare anche la transazione pivot e una transazione ripetibile (hint: background service).
-
+ - Creare immagine di ogni microservizio da mettere poi su github.
+ - Migrations
  

@@ -154,12 +154,6 @@ namespace ShopSaga.PaymentService.Business
                 throw new ArgumentException("Il metodo di pagamento è richiesto", nameof(dto.PaymentMethod));
         }
 
-        private void ValidateUpdatePaymentDto(UpdatePaymentDTO dto)
-        {
-            if (dto == null)
-                throw new ArgumentNullException(nameof(dto));
-        }
-
         private void ValidateRefundPaymentDto(RefundPaymentDTO dto)
         {
             if (dto == null)
