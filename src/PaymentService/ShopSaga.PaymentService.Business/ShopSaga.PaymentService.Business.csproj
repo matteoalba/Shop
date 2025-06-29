@@ -4,6 +4,12 @@
     <ProjectReference Include="..\ShopSaga.PaymentService.Repository\ShopSaga.PaymentService.Repository.csproj" />
     <ProjectReference Include="..\ShopSaga.PaymentService.ClientHttp\ShopSaga.PaymentService.ClientHttp.csproj" />
     <ProjectReference Include="..\ShopSaga.PaymentService.Shared\ShopSaga.PaymentService.Shared.csproj" />
+    <ProjectReference Include="..\..\OrderService\ShopSaga.OrderService.ClientHttp\ShopSaga.OrderService.ClientHttp.csproj" />
+    <ProjectReference Include="..\..\StockService\ShopSaga.StockService.ClientHttp\ShopSaga.StockService.ClientHttp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -66,7 +66,7 @@ namespace ShopSaga.StockService.WebApi.Controllers
                 var isAvailable = await _stockBusiness.IsProductAvailableAsync(productId, quantity, cancellationToken);
                 if (quantity <= 0)
                     return BadRequest("La quantità richiesta deve essere maggiore di zero");
-                return Ok(new { ProductId = productId, RequestedQuantity = quantity, IsAvailable = isAvailable });
+                return Ok(isAvailable);
             }
             catch (Exception ex)
             {
@@ -250,16 +250,16 @@ namespace ShopSaga.StockService.WebApi.Controllers
             }
         }
 
-        [HttpPut("orders/{orderId}/reservations/confirm")]
+        [HttpPut("order/{orderId}/reservations/confirm")]
         public async Task<ActionResult> ConfirmAllStockReservationsForOrder(int orderId, CancellationToken cancellationToken = default)
         {
             try
             {
                 var result = await _stockBusiness.ConfirmAllStockReservationsForOrderAsync(orderId, cancellationToken);
                 if (!result)
-                    return NotFound($"Nessuna prenotazione stock trovata per l'ordine {orderId} o errore durante la conferma");
+                    return NotFound(false);
 
-                return Ok($"Tutte le prenotazioni stock per l'ordine {orderId} sono state confermate con successo");
+                return Ok(true);
             }
             catch (Exception ex)
             {

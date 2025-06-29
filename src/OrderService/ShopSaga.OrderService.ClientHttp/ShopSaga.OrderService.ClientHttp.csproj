@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ShopSaga.OrderService.Shared\ShopSaga.OrderService.Shared.csproj" />
+    <ProjectReference Include="..\..\PaymentService\ShopSaga.PaymentService.Shared\ShopSaga.PaymentService.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

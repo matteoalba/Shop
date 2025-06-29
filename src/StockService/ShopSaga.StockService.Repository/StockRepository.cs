@@ -41,7 +41,6 @@ namespace ShopSaga.StockService.Repository
             product.UpdatedAt = DateTime.UtcNow;
 
             _context.Products.Add(product);
-            await SaveChanges(cancellationToken);
             return product;
         }
 
@@ -57,7 +56,6 @@ namespace ShopSaga.StockService.Repository
             existingProduct.QuantityInStock = product.QuantityInStock;
             existingProduct.UpdatedAt = DateTime.UtcNow;
 
-            await SaveChanges(cancellationToken);
             return existingProduct;
         }
 
@@ -116,8 +114,6 @@ namespace ShopSaga.StockService.Repository
                 // Riduci lo stock del prodotto
                 product.QuantityInStock -= quantity;
                 product.UpdatedAt = DateTime.UtcNow;
-
-                await SaveChanges(cancellationToken);
                 return existingReservation;
             }
             else
@@ -142,9 +138,7 @@ namespace ShopSaga.StockService.Repository
                 product.QuantityInStock -= quantity;
                 product.UpdatedAt = DateTime.UtcNow;
 
-                _context.StockReservations.Add(reservation);
-                await SaveChanges(cancellationToken);
-                
+                _context.StockReservations.Add(reservation);         
                 return reservation;
             }
         }
@@ -158,7 +152,6 @@ namespace ShopSaga.StockService.Repository
             reservation.Status = "Confirmed";
             reservation.UpdatedAt = DateTime.UtcNow;
 
-            await SaveChanges(cancellationToken);
             return true;
         }
 
@@ -181,8 +174,6 @@ namespace ShopSaga.StockService.Repository
 
             reservation.Status = "Cancelled";
             reservation.UpdatedAt = DateTime.UtcNow;
-
-            await SaveChanges(cancellationToken);
             return true;
         }
     }

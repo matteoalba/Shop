@@ -9,12 +9,14 @@
   <ItemGroup>
     <PackageReference Include="Confluent.Kafka" Version="2.10.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ShopSaga.StockService.Business\ShopSaga.StockService.Business.csproj" />
     <ProjectReference Include="..\ShopSaga.StockService.Shared\ShopSaga.StockService.Shared.csproj" />
+    <ProjectReference Include="..\..\OrderService\ShopSaga.OrderService.ClientHttp\ShopSaga.OrderService.ClientHttp.csproj" />
   </ItemGroup>
 
 </Project>

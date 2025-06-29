@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ShopSaga.OrderService.Shared;
 
 namespace ShopSaga.OrderService.Repository.Model
 {
@@ -17,7 +18,7 @@ namespace ShopSaga.OrderService.Repository.Model
 
         [Required]
         [MaxLength(50)]
-        public string Status { get; set; } = "Created";
+        public string Status { get; set; } = OrderStatus.Created;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         

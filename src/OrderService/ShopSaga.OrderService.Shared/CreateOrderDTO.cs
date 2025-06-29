@@ -13,6 +13,9 @@ namespace ShopSaga.OrderService.Shared
     public class CreateOrderItemDTO
     {
         [Required]
+        public Guid ProductId { get; set; }
+
+        [Required]
         [Range(1, int.MaxValue, ErrorMessage = "La quantità deve essere maggiore di zero")]
         public int Quantity { get; set; }
 

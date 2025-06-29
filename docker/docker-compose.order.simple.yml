@@ -16,8 +16,8 @@ services:
   # Order microservice
   order-service:
     build:
-      context: ../src/OrderService
-      dockerfile: ShopSaga.OrderService.WebApi/Dockerfile
+      context: ../src
+      dockerfile: OrderService/ShopSaga.OrderService.WebApi/Dockerfile
     ports:
       - "5001:8080"
     environment:
@@ -47,12 +47,13 @@ services:
   # Payment microservice
   payment-service:
     build:
-      context: ../src/PaymentService
-      dockerfile: ShopSaga.PaymentService.WebApi/Dockerfile
+      context: ../src
+      dockerfile: PaymentService/ShopSaga.PaymentService.WebApi/Dockerfile
     ports:
       - "5002:8080"
     environment:
       - ConnectionStrings__PaymentServiceDb=Server=payment-db;Database=PaymentDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - OrderService__BaseUrl=http://order-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
@@ -61,6 +62,7 @@ services:
     restart: always
     depends_on:
       - payment-db
+      - order-service
 
   stock-db:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -78,8 +80,8 @@ services:
   # Stock microservice
   stock-service:
     build:
-      context: ../src/StockService
-      dockerfile: ShopSaga.StockService.WebApi/Dockerfile
+      context: ../src
+      dockerfile: StockService/ShopSaga.StockService.WebApi/Dockerfile
     ports:
       - "5003:8080"
     environment:

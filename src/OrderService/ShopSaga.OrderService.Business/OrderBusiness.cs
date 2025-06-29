@@ -3,6 +3,10 @@ using ShopSaga.OrderService.Business.Abstraction;
 using ShopSaga.OrderService.Repository.Abstraction;
 using ShopSaga.OrderService.Repository.Model;
 using ShopSaga.OrderService.Shared;
+using ShopSaga.OrderService.ClientHttp.Abstraction;
+using ShopSaga.PaymentService.ClientHttp.Abstraction;
+using ShopSaga.StockService.ClientHttp.Abstraction;
+using ShopSaga.StockService.Shared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,14 +18,16 @@ namespace ShopSaga.OrderService.Business
     public class OrderBusiness : IOrderBusiness
     {
         private readonly IOrderRepository _orderRepository;
-        private readonly ISagaStateRepository _sagaStateRepository;
         private readonly ILogger<OrderBusiness> _logger;
+        private readonly IPaymentHttp _paymentHttp;
+        private readonly IStockHttp _stockHttp;
         
-        public OrderBusiness(IOrderRepository orderRepository, ISagaStateRepository sagaStateRepository, ILogger<OrderBusiness> logger)
+        public OrderBusiness(IOrderRepository orderRepository, ILogger<OrderBusiness> logger, IPaymentHttp paymentHttp, IStockHttp stockHttp)
         {
-            _sagaStateRepository = sagaStateRepository ?? throw new ArgumentNullException(nameof(sagaStateRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
+            _paymentHttp = paymentHttp ?? throw new ArgumentNullException(nameof(paymentHttp));
+            _stockHttp = stockHttp ?? throw new ArgumentNullException(nameof(stockHttp));
         }
 
         public async Task<OrderDTO> CreateOrderAsync(OrderDTO orderDto, CancellationToken cancellationToken = default)
@@ -41,12 +47,27 @@ namespace ShopSaga.OrderService.Business
 
             try
             {
+                _logger.LogInformation("Inizio creazione ordine con {ItemCount} articoli", orderDto.OrderItems.Count);
+
                 // Genera un nuovo GUID per il CustomerId
                 var customerId = Guid.NewGuid();
                 
+                // Prima controlla disponibilità stock per tutti gli items
+                foreach (var item in orderDto.OrderItems)
+                {
+                    var isAvailable = await _stockHttp.IsProductAvailableAsync(item.ProductId, item.Quantity, cancellationToken);
+                    if (!isAvailable)
+                    {
+                        _logger.LogWarning("Prodotto {ProductId} non disponibile per quantità {Quantity}", item.ProductId, item.Quantity);
+                        return null;
+                    }
+                }
+
+                _logger.LogInformation("Tutti i prodotti sono disponibili, procedo con la creazione ordine");
+                
                 var orderItems = orderDto.OrderItems.Select(itemDto => new OrderItem
                 {
-                    ProductId = Guid.NewGuid(),
+                    ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
                     UnitPrice = itemDto.UnitPrice
                 }).ToList();
@@ -58,7 +79,7 @@ namespace ShopSaga.OrderService.Business
                 var order = new Order
                 {
                     CustomerId = customerId,
-                    Status = "Created", // Stato iniziale
+                    Status = OrderStatus.Created, // Stato iniziale
                     TotalAmount = totalAmount, 
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
@@ -71,10 +92,63 @@ namespace ShopSaga.OrderService.Business
                 // Salvataggio delle modifiche
                 await _orderRepository.SaveChanges(cancellationToken);
 
+                _logger.LogInformation("Ordine {OrderId} creato, ora procedo con la prenotazione stock", createdOrder.Id);
+
+                // Ora prenota lo stock per tutti gli items (SAGA step)
+                try 
+                {
+                    // Prepara le prenotazioni per tutti gli items usando ReserveStockDTO
+                    var reservations = orderDto.OrderItems.Select(item => new 
+                    {
+                        ProductId = item.ProductId,
+                        OrderId = createdOrder.Id,
+                        Quantity = item.Quantity
+                    }).ToList();
+
+                    _logger.LogInformation("Creazione prenotazioni stock per {ItemCount} items dell'ordine {OrderId}", 
+                        reservations.Count, createdOrder.Id);
+
+                    // Converte in ReserveStockDTO per la chiamata HTTP
+                    var reserveDtos = reservations.Select(r => new ReserveStockDTO 
+                    {
+                        ProductId = r.ProductId,
+                        OrderId = r.OrderId,
+                        Quantity = r.Quantity
+                    }).ToList();
+
+                    // Chiamata batch al StockService
+                    var reservationResults = await _stockHttp.ReserveMultipleStockAsync(reserveDtos, cancellationToken);
+                    
+                    if (reservationResults == null || !reservationResults.Any())
+                    {
+                        throw new InvalidOperationException("Nessuna prenotazione stock creata dal StockService");
+                    }
+
+                    _logger.LogInformation("Prenotazione stock completata per ordine {OrderId}: {Count} prenotazioni create", 
+                        createdOrder.Id, reservationResults.Count());
+                    
+                    // Aggiorna stato ordine a StockReserved
+                    createdOrder.Status = OrderStatus.StockReserved;
+                    createdOrder.UpdatedAt = DateTime.UtcNow;
+                    await _orderRepository.SaveChanges(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Errore durante prenotazione stock per ordine {OrderId}", createdOrder.Id);
+                    
+                    // Compensazione: cancella l'ordine creato
+                    await _orderRepository.DeleteOrderAsync(createdOrder.Id, cancellationToken);
+                    await _orderRepository.SaveChanges(cancellationToken);
+                    
+                    _logger.LogInformation("Ordine {OrderId} cancellato a causa dell'errore nella prenotazione stock", createdOrder.Id);
+                    return null;
+                }
+
                 // Mapping dell'ordine creato per il DTO di ritorno
                 var resultDto = MapOrderToDto(createdOrder);
 
-                _logger.LogInformation("Ordine creato con successo con ID {OrderId}, CustomerId {CustomerId}", resultDto.Id, resultDto.CustomerId);
+                _logger.LogInformation("Ordine creato con successo con ID {OrderId}, CustomerId {CustomerId}, Status {Status}", 
+                    resultDto.Id, resultDto.CustomerId, resultDto.Status);
                 return resultDto;
             }
             catch (Exception ex)
@@ -86,17 +160,89 @@ namespace ShopSaga.OrderService.Business
         
         public async Task<bool> DeleteOrderAsync(int id, CancellationToken cancellationToken = default)
         {
-            var order = await _orderRepository.DeleteOrderAsync(id, cancellationToken);
-            if (!order)
+            try 
             {
-                _logger.LogWarning("Ordine con ID {OrderId} non trovato per la cancellazione", id);
+                _logger.LogInformation("Tentativo di cancellazione ordine {OrderId}", id);
+                
+                // Verifica che l'ordine esista
+                var existingOrder = await _orderRepository.GetOrderByIdAsync(id, cancellationToken);
+                if (existingOrder == null)
+                {
+                    _logger.LogWarning("Ordine con ID {OrderId} non trovato per la cancellazione", id);
+                    return false;
+                }
+                
+                // Verifica se ci sono pagamenti associati all'ordine
+                bool hasCompletedPayment = false;
+                try 
+                {
+                    var payment = await _paymentHttp.GetPaymentByOrderIdAsync(id, cancellationToken);
+                    if (payment != null)
+                    {
+                        _logger.LogWarning("Impossibile cancellare ordine {OrderId}: pagamento esistente con stato {PaymentStatus}", 
+                            id, payment.Status);
+                        
+                        // Se c'è un pagamento completato, non possiamo cancellare l'ordine
+                        if (payment.Status == "Completed")
+                        {
+                            _logger.LogError("Ordine {OrderId} non può essere cancellato: pagamento completato", id);
+                            return false;
+                        }
+                        
+                        // Se c'è un pagamento pending, lo segnaliamo ma permettiamo la cancellazione
+                        if (payment.Status == "Pending")
+                        {
+                            _logger.LogWarning("Ordine {OrderId} ha un pagamento pending - procedendo con la cancellazione", id);
+                        }
+                        
+                        hasCompletedPayment = payment.Status == "Completed";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Errore durante il controllo del pagamento per ordine {OrderId} - procedendo con la cancellazione", id);
+                }
+                
+                // Se non c'è un pagamento completato, rilascia le stock reservations
+                if (!hasCompletedPayment)
+                {
+                    try 
+                    {
+                        _logger.LogInformation("Rilascio stock reservations per ordine {OrderId}", id);
+                        var stockReleased = await _stockHttp.CancelAllStockReservationsForOrderAsync(id, cancellationToken);
+                        if (!stockReleased)
+                        {
+                            _logger.LogWarning("Errore nel rilascio stock reservations per ordine {OrderId}", id);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Stock reservations rilasciate con successo per ordine {OrderId}", id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Errore durante il rilascio stock reservations per ordine {OrderId}", id);
+                    }
+                }
+                
+                // Procedi con la cancellazione
+                var deleted = await _orderRepository.DeleteOrderAsync(id, cancellationToken);
+                if (!deleted)
+                {
+                    _logger.LogWarning("Errore durante la cancellazione dell'ordine {OrderId} dal repository", id);
+                    return false;
+                }
+
+                await _orderRepository.SaveChanges(cancellationToken);
+
+                _logger.LogInformation("Ordine con ID {OrderId} cancellato con successo", id);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la cancellazione dell'ordine {OrderId}: {ErrorMessage}", id, ex.Message);
                 return false;
             }
-
-            await _orderRepository.SaveChanges(cancellationToken);
-
-            _logger.LogInformation("Ordine con ID {OrderId} cancellato con successo", id);
-            return true;
         }
 
         public async Task<IEnumerable<OrderDTO>> GetAllOrdersAsync(CancellationToken cancellationToken = default)
@@ -144,24 +290,60 @@ namespace ShopSaga.OrderService.Business
                 return null;
             }
 
-            // Controlla se tutti gli OrderItem con ID > 0 esistono nell'ordine
-            if (orderDto.OrderItems != null && orderDto.OrderItems.Any())
-            {
-                var isValid = await _orderRepository.ValidateOrderItemsAsync(orderDto.Id, orderDto.OrderItems, cancellationToken);
-                
-                if (!isValid)
-                {
-                    _logger.LogWarning("Uno o più OrderItem specificati non esistono nell'ordine {OrderId}. Operazione annullata.", orderDto.Id);
-                    return null;
-                }
-            }
-
             try
             {
-                // Usa il repository per aggiornare l'ordine e gestire gli OrderItems
+                _logger.LogInformation("Inizio aggiornamento ordine {OrderId}", orderDto.Id);
+
+                // Recupera l'ordine esistente con i suoi items
+                var existingOrder = await _orderRepository.GetOrderByIdAsync(orderDto.Id, cancellationToken);
+                if (existingOrder == null)
+                {
+                    _logger.LogWarning("Ordine {OrderId} non trovato per l'aggiornamento", orderDto.Id);
+                    return null;
+                }
+
+                // Controlla se tutti gli OrderItem con ID > 0 esistono nell'ordine
+                if (orderDto.OrderItems != null && orderDto.OrderItems.Any())
+                {
+                    var isValid = await _orderRepository.ValidateOrderItemsAsync(orderDto.Id, orderDto.OrderItems, cancellationToken);
+                    
+                    if (!isValid)
+                    {
+                        _logger.LogWarning("Uno o più OrderItem specificati non esistono nell'ordine {OrderId}. Operazione annullata.", orderDto.Id);
+                        return null;
+                    }
+                }
+
+                // Analizza le differenze per gestire stock reservations
+                var currentItems = existingOrder.OrderItems.ToList();
+                var newItems = orderDto.OrderItems?.ToList() ?? new List<OrderItemDTO>();
+
+                _logger.LogInformation("Analisi modifiche ordine {OrderId}: {CurrentCount} items attuali, {NewCount} items nuovi", 
+                    orderDto.Id, currentItems.Count, newItems.Count);
+
+                // Items aggiunti (ID = 0 o non presenti nei current items)
+                var addedItems = newItems.Where(ni => ni.Id == 0 || !currentItems.Any(ci => ci.Id == ni.Id)).ToList();
+                
+                // Items aggiornati (stessa ID ma quantità/prezzo diversi)
+                var updatedItems = newItems.Where(ni => ni.Id > 0 && currentItems.Any(ci => ci.Id == ni.Id && 
+                    (ci.Quantity != ni.Quantity || ci.UnitPrice != ni.UnitPrice))).ToList();
+
+                _logger.LogInformation("Modifiche ordine {OrderId}: {Added} aggiunti, {Updated} aggiornati", 
+                    orderDto.Id, addedItems.Count, updatedItems.Count);
+
+                // Gestione SAGA per stock changes
+                bool stockOperationsSuccessful = await HandleStockChangesAsync(orderDto.Id, addedItems, updatedItems, currentItems, cancellationToken);
+                
+                if (!stockOperationsSuccessful)
+                {
+                    _logger.LogError("Errore nelle operazioni di stock per ordine {OrderId}, rollback necessario", orderDto.Id);
+                    return null;
+                }
+
+                // Se tutto ok, procedi con l'aggiornamento dell'ordine
                 var updatedOrder = await _orderRepository.UpdateOrderWithItemsAsync(
                     orderDto.Id, 
-                    orderDto.Status, 
+                    orderDto.Status ?? existingOrder.Status, 
                     orderDto.OrderItems, 
                     cancellationToken);
                 
@@ -177,8 +359,195 @@ namespace ShopSaga.OrderService.Business
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dell'ordine {OrderId}: {ErrorMessage}", orderDto.Id, ex.Message);
+                
+                // Rollback semplice: cancella tutte le stock reservations per l'ordine
+                try
+                {
+                    _logger.LogInformation("Avvio rollback stock reservations per ordine {OrderId}", orderDto.Id);
+                    var rollbackSuccess = await _stockHttp.CancelAllStockReservationsForOrderAsync(orderDto.Id, cancellationToken);
+                    
+                    if (rollbackSuccess)
+                    {
+                        _logger.LogInformation("Rollback stock reservations completato per ordine {OrderId}", orderDto.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Rollback stock reservations parziale per ordine {OrderId}", orderDto.Id);
+                    }
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx, "Errore durante il rollback stock reservations per ordine {OrderId}", orderDto.Id);
+                }
+                
                 return null;
             }
+        }
+
+        private async Task<bool> HandleStockChangesAsync(
+            int orderId, 
+            List<OrderItemDTO> addedItems, 
+            List<OrderItemDTO> updatedItems, 
+            List<OrderItem> currentItems, 
+            CancellationToken cancellationToken)
+        {
+            var operationsExecuted = new List<Guid>(); // Track delle operazioni per rollback
+            
+            try
+            {
+                // 1. Items aggiunti: Controllo spazio e prenotazione
+                foreach (var addedItem in addedItems)
+                {
+                    _logger.LogInformation("Controllo disponibilità per nuovo item: Prodotto {ProductId}, Quantità {Quantity}", 
+                        addedItem.ProductId, addedItem.Quantity);
+                    
+                    var isAvailable = await _stockHttp.IsProductAvailableAsync(addedItem.ProductId, addedItem.Quantity, cancellationToken);
+                    if (!isAvailable)
+                    {
+                        _logger.LogWarning("Prodotto {ProductId} non disponibile per quantità {Quantity}", 
+                            addedItem.ProductId, addedItem.Quantity);
+                        await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                        return false;
+                    }
+                    
+                    // Creare stock reservation per il nuovo item
+                    var reserveDto = new ReserveStockDTO
+                    {
+                        ProductId = addedItem.ProductId,
+                        OrderId = orderId,
+                        Quantity = addedItem.Quantity
+                    };
+                    
+                    var reservation = await _stockHttp.ReserveStockAsync(reserveDto, cancellationToken);
+                    if (reservation == null)
+                    {
+                        _logger.LogError("Errore nella creazione prenotazione stock per Prodotto {ProductId}", addedItem.ProductId);
+                        await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                        return false;
+                    }
+                    
+                    operationsExecuted.Add(reservation.Id); // Track operazione
+                    _logger.LogInformation("Prenotazione stock creata per nuovo item: Prodotto {ProductId}, Reservation ID {ReservationId}", 
+                        addedItem.ProductId, reservation.Id);
+                }
+
+                // 3. Items aggiornati
+                foreach (var updatedItem in updatedItems)
+                {
+                    var currentItem = currentItems.First(ci => ci.Id == updatedItem.Id);
+                    var quantityDelta = updatedItem.Quantity - currentItem.Quantity;
+
+                    _logger.LogInformation("Item aggiornato: Prodotto {ProductId}, quantità delta {Delta}", 
+                        updatedItem.ProductId, quantityDelta);
+
+                    if (quantityDelta > 0)
+                    {
+                        // Aumentata quantità: controlla disponibilità per il delta
+                        var isAvailable = await _stockHttp.IsProductAvailableAsync(updatedItem.ProductId, quantityDelta, cancellationToken);
+                        if (!isAvailable)
+                        {
+                            _logger.LogWarning("Prodotto {ProductId} non disponibile per quantità aggiuntiva {Delta}", 
+                                updatedItem.ProductId, quantityDelta);
+                            await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                            return false;
+                        }
+                        
+                        // Creare una nuova prenotazione per il delta aggiuntivo
+                        var reserveDto = new ReserveStockDTO
+                        {
+                            ProductId = updatedItem.ProductId,
+                            OrderId = orderId,
+                            Quantity = quantityDelta
+                        };
+                        
+                        var deltaReservation = await _stockHttp.ReserveStockAsync(reserveDto, cancellationToken);
+                        if (deltaReservation == null)
+                        {
+                            _logger.LogError("Errore nella creazione prenotazione aggiuntiva per Prodotto {ProductId}, Delta {Delta}", 
+                                updatedItem.ProductId, quantityDelta);
+                            await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                            return false;
+                        }
+                        
+                        operationsExecuted.Add(deltaReservation.Id); // Track operazione
+                        _logger.LogInformation("Prenotazione stock aggiuntiva creata per Prodotto {ProductId}, Delta {Delta}, Reservation ID {ReservationId}", 
+                            updatedItem.ProductId, quantityDelta, deltaReservation.Id);
+                    }
+                    else if (quantityDelta < 0)
+                    {
+                        // Diminuita quantità: riduci la prenotazione esistente
+                        var existingReservations = await _stockHttp.GetStockReservationsByOrderAsync(orderId, cancellationToken);
+                        var reservationToReduce = existingReservations.Where(r => r.ProductId == updatedItem.ProductId).FirstOrDefault();
+                        
+                        if (reservationToReduce != null)
+                        {
+                            var cancelled = await _stockHttp.CancelStockReservationAsync(reservationToReduce.Id, cancellationToken);
+                            if (!cancelled)
+                            {
+                                _logger.LogError("Errore nella cancellazione prenotazione esistente per Prodotto {ProductId}", updatedItem.ProductId);
+                                await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                                return false;
+                            }
+                            
+                            // Crea nuova prenotazione con quantità aggiornata
+                            var newReserveDto = new ReserveStockDTO
+                            {
+                                ProductId = updatedItem.ProductId,
+                                OrderId = orderId,
+                                Quantity = updatedItem.Quantity
+                            };
+                            
+                            var newReservation = await _stockHttp.ReserveStockAsync(newReserveDto, cancellationToken);
+                            if (newReservation == null)
+                            {
+                                _logger.LogError("Errore nella ricreazione prenotazione per Prodotto {ProductId}, Nuova quantità {Quantity}", 
+                                    updatedItem.ProductId, updatedItem.Quantity);
+                                await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                                return false;
+                            }
+                            
+                            operationsExecuted.Add(newReservation.Id); // Track operazione
+                            _logger.LogInformation("Prenotazione stock ridotta per Prodotto {ProductId}, Nuova quantità {Quantity}, Reservation ID {ReservationId}", 
+                                updatedItem.ProductId, updatedItem.Quantity, newReservation.Id);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Nessuna prenotazione esistente trovata per Prodotto {ProductId} dell'ordine {OrderId}", 
+                                updatedItem.ProductId, orderId);
+                        }
+                    }
+                }
+
+                _logger.LogInformation("Tutte le operazioni stock per ordine {OrderId} completate con successo", orderId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante le operazioni stock per ordine {OrderId}", orderId);
+                await RollbackOperations(orderId, operationsExecuted, cancellationToken);
+                return false;
+            }
+        }
+        
+        private async Task RollbackOperations(int orderId, List<Guid> operationsExecuted, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Avvio rollback per {Count} operazioni stock dell'ordine {OrderId}", operationsExecuted.Count, orderId);
+            
+            // Rollback semplice: cancella tutte le reservations create durante questa operazione
+            foreach (var reservationId in operationsExecuted)
+            {
+                try
+                {
+                    await _stockHttp.CancelStockReservationAsync(reservationId, cancellationToken);
+                    _logger.LogInformation("Rollback: cancellata reservation {ReservationId}", reservationId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Errore durante rollback reservation {ReservationId}", reservationId);
+                }
+            }
+            
+            _logger.LogInformation("Rollback completato per ordine {OrderId}", orderId);
         }
 
         private OrderDTO MapOrderToDto(Order order)
@@ -205,14 +574,54 @@ namespace ShopSaga.OrderService.Business
 
         public async Task<OrderDTO> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default)
         {
-            // TODO: Implementazione completa
-            return new OrderDTO();
-        }
-
-        public async Task<SagaStateDTO> StartOrderProcessingAsync(int orderId, CancellationToken cancellationToken = default)
-        {
-            // TODO: Implementazione completa
-            return new SagaStateDTO();
+            try
+            {
+                _logger.LogInformation("Aggiornamento stato ordine {OrderId} a {Status}", orderId, status);
+                
+                // Validazione input
+                if (orderId <= 0)
+                {
+                    _logger.LogError("ID ordine non valido: {OrderId}", orderId);
+                    return null;
+                }
+                
+                if (string.IsNullOrWhiteSpace(status))
+                {
+                    _logger.LogError("Status non valido per ordine {OrderId}", orderId);
+                    return null;
+                }
+                
+                // Verifica che l'ordine esista
+                var existingOrder = await _orderRepository.GetOrderByIdAsync(orderId, cancellationToken);
+                if (existingOrder == null)
+                {
+                    _logger.LogWarning("Ordine {OrderId} non trovato per aggiornamento status", orderId);
+                    return null;
+                }
+                
+                // Log dello stato precedente per audit
+                _logger.LogInformation("Ordine {OrderId}: cambio stato da '{OldStatus}' a '{NewStatus}'", 
+                    orderId, existingOrder.Status, status);
+                
+                // Aggiorna solo lo status usando il repository
+                existingOrder.Status = status;
+                existingOrder.UpdatedAt = DateTime.UtcNow;
+                
+                // Salva le modifiche
+                await _orderRepository.SaveChanges(cancellationToken);
+                
+                // Restituisci il DTO aggiornato
+                var resultDto = MapOrderToDto(existingOrder);
+                
+                _logger.LogInformation("Status ordine {OrderId} aggiornato con successo a '{Status}'", orderId, status);
+                return resultDto;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento status ordine {OrderId} a '{Status}': {ErrorMessage}", 
+                    orderId, status, ex.Message);
+                return null;
+            }
         }
     }
 }

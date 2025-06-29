@@ -22,7 +22,5 @@ namespace ShopSaga.OrderService.Business.Abstraction
         Task<IEnumerable<OrderDTO>> GetAllOrdersAsync(CancellationToken cancellationToken = default);
         
         Task<OrderDTO> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default);
-        
-        Task<SagaStateDTO> StartOrderProcessingAsync(int orderId, CancellationToken cancellationToken = default);
     }
 }

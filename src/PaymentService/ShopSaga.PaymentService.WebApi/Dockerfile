@@ -5,14 +5,28 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["ShopSaga.PaymentService.WebApi/ShopSaga.PaymentService.WebApi.csproj", "ShopSaga.PaymentService.WebApi/"]
-COPY ["ShopSaga.PaymentService.Business/ShopSaga.PaymentService.Business.csproj", "ShopSaga.PaymentService.Business/"]
-COPY ["ShopSaga.PaymentService.ClientHttp/ShopSaga.PaymentService.ClientHttp.csproj", "ShopSaga.PaymentService.ClientHttp/"]
-COPY ["ShopSaga.PaymentService.Repository/ShopSaga.PaymentService.Repository.csproj", "ShopSaga.PaymentService.Repository/"]
-COPY ["ShopSaga.PaymentService.Shared/ShopSaga.PaymentService.Shared.csproj", "ShopSaga.PaymentService.Shared/"]
-RUN dotnet restore "ShopSaga.PaymentService.WebApi/ShopSaga.PaymentService.WebApi.csproj"
+
+# Copia i file di progetto del PaymentService
+COPY ["PaymentService/ShopSaga.PaymentService.WebApi/ShopSaga.PaymentService.WebApi.csproj", "PaymentService/ShopSaga.PaymentService.WebApi/"]
+COPY ["PaymentService/ShopSaga.PaymentService.Business/ShopSaga.PaymentService.Business.csproj", "PaymentService/ShopSaga.PaymentService.Business/"]
+COPY ["PaymentService/ShopSaga.PaymentService.ClientHttp/ShopSaga.PaymentService.ClientHttp.csproj", "PaymentService/ShopSaga.PaymentService.ClientHttp/"]
+COPY ["PaymentService/ShopSaga.PaymentService.Repository/ShopSaga.PaymentService.Repository.csproj", "PaymentService/ShopSaga.PaymentService.Repository/"]
+COPY ["PaymentService/ShopSaga.PaymentService.Shared/ShopSaga.PaymentService.Shared.csproj", "PaymentService/ShopSaga.PaymentService.Shared/"]
+
+# Copia i file di progetto dell'OrderService (dependencies)
+COPY ["OrderService/ShopSaga.OrderService.ClientHttp/ShopSaga.OrderService.ClientHttp.csproj", "OrderService/ShopSaga.OrderService.ClientHttp/"]
+COPY ["OrderService/ShopSaga.OrderService.Shared/ShopSaga.OrderService.Shared.csproj", "OrderService/ShopSaga.OrderService.Shared/"]
+COPY ["StockService/ShopSaga.StockService.ClientHttp/ShopSaga.StockService.ClientHttp.csproj", "StockService/ShopSaga.StockService.ClientHttp/"]
+COPY ["StockService/ShopSaga.StockService.Shared/ShopSaga.StockService.Shared.csproj", "StockService/ShopSaga.StockService.Shared/"]
+
+# Restore delle dipendenze
+RUN dotnet restore "PaymentService/ShopSaga.PaymentService.WebApi/ShopSaga.PaymentService.WebApi.csproj"
+
+# Copia tutto il codice sorgente
 COPY . .
-WORKDIR "/src/ShopSaga.PaymentService.WebApi"
+
+# Build del progetto
+WORKDIR "/src/PaymentService/ShopSaga.PaymentService.WebApi"
 RUN dotnet build "ShopSaga.PaymentService.WebApi.csproj" -c Release -o /app/build
 
 FROM build AS publish

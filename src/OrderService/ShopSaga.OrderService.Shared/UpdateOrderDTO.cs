@@ -13,6 +13,7 @@ namespace ShopSaga.OrderService.Shared
 
     public class UpdateOrderDTO
     {
-        public List<UpdateOrderItemDTO> OrderItems { get; set; }
+        public string? Status { get; set; }
+        public List<UpdateOrderItemDTO>? OrderItems { get; set; }
     }
 }

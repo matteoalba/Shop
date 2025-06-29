@@ -38,21 +38,6 @@ BEGIN
     );
 END
 GO
--- Tabella Saga States per gestire lo stato delle SAGA
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SagaStates' AND xtype='U')
-BEGIN
-    CREATE TABLE SagaStates (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        OrderId INT NOT NULL,
-        Status NVARCHAR(50) NOT NULL DEFAULT 'Started',
-        PaymentStatus NVARCHAR(50) DEFAULT 'Pending',
-        StockStatus NVARCHAR(50) DEFAULT 'Pending',
-        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-        UpdatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT FK_SagaStates_Orders FOREIGN KEY (OrderId) REFERENCES Orders(Id) ON DELETE CASCADE
-    );
-END
-GO
 
 -- PaymentDb
 USE master;
@@ -159,9 +144,6 @@ CREATE NONCLUSTERED INDEX IX_Orders_CreatedAt ON Orders(CreatedAt);
 
 CREATE NONCLUSTERED INDEX IX_OrderItems_OrderId ON OrderItems(OrderId);
 CREATE NONCLUSTERED INDEX IX_OrderItems_ProductId ON OrderItems(ProductId);
-
-CREATE NONCLUSTERED INDEX IX_SagaStates_OrderId ON SagaStates(OrderId);
-CREATE NONCLUSTERED INDEX IX_SagaStates_Status ON SagaStates(Status);
 
 CREATE NONCLUSTERED INDEX IX_Payments_OrderId ON Payments(OrderId);
 CREATE NONCLUSTERED INDEX IX_Payments_Status ON Payments(Status);

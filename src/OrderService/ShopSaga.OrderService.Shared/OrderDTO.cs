@@ -13,7 +13,7 @@ namespace ShopSaga.OrderService.Shared
 
         public decimal TotalAmount { get; set; }
 
-        public string Status { get; set; } = "Created";
+        public string Status { get; set; } = OrderStatus.Created;
 
         public DateTime CreatedAt { get; set; }
         

@@ -16,13 +16,11 @@ namespace ShopSaga.OrderService.WebApi.Controllers
     {
         private readonly ILogger<OrderController> _logger;
         private readonly IOrderBusiness _orderBusiness;
-        private readonly ISagaOrchestrator _sagaOrchestrator;
 
-        public OrderController(ILogger<OrderController> logger, IOrderBusiness orderBusiness, ISagaOrchestrator sagaOrchestrator)
+        public OrderController(ILogger<OrderController> logger, IOrderBusiness orderBusiness)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _orderBusiness = orderBusiness ?? throw new ArgumentNullException(nameof(orderBusiness));
-            _sagaOrchestrator = sagaOrchestrator ?? throw new ArgumentNullException(nameof(sagaOrchestrator));
         }
 
         [HttpGet("{orderId}")]
@@ -140,6 +138,7 @@ namespace ShopSaga.OrderService.WebApi.Controllers
                 {
                     OrderItems = createOrderDto.OrderItems.Select(item => new OrderItemDTO 
                     {
+                        ProductId = item.ProductId,
                         Quantity = item.Quantity,
                         UnitPrice = item.UnitPrice
                     }).ToList()
@@ -180,13 +179,13 @@ namespace ShopSaga.OrderService.WebApi.Controllers
                 var orderDto = new OrderDTO 
                 {
                     Id = orderId, // Usiamo l'ID dall'URL
-                    Status = "Created", // Status fisso
+                    Status = updateOrderDto.Status,
                     OrderItems = updateOrderDto.OrderItems?.Select(item => new OrderItemDTO
                     {
                         Id = item.Id,
                         Quantity = item.Quantity,
                         UnitPrice = item.UnitPrice,
-                        ProductId = Guid.Empty // Questo valore sarà ignorato dal repository
+                        ProductId = Guid.Empty
                     }).ToList() ?? new List<OrderItemDTO>()
                 };
                 
@@ -204,6 +203,27 @@ namespace ShopSaga.OrderService.WebApi.Controllers
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dell'ordine {OrderId}", orderId);
                 return StatusCode(500, "Si è verificato un errore durante l'elaborazione della richiesta");
+            }
+        }
+
+        [HttpPut("{orderId}/status")]
+        public async Task<ActionResult<bool>> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderDTO updateOrderDto, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Aggiornamento stato ordine {OrderId} a {Status}", orderId, updateOrderDto.Status);
+                var result = await _orderBusiness.UpdateOrderStatusAsync(orderId, updateOrderDto.Status, cancellationToken);
+                if (result == null)
+                {
+                    _logger.LogWarning("Aggiornamento stato ordine {OrderId} fallito", orderId);
+                    return NotFound(false);
+                }
+                return Ok(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento stato ordine {OrderId}", orderId);
+                return StatusCode(500, false);
             }
         }
     }
