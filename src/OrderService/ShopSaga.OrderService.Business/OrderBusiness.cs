@@ -628,5 +628,86 @@ namespace ShopSaga.OrderService.Business
                 return null;
             }
         }
+
+        public async Task<OrderDTO> CancelOrderAsync(int orderId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Inizio cancellazione ordine {OrderId}", orderId);
+
+                var payment = await _paymentHttp.GetPaymentByOrderIdAsync(orderId, cancellationToken);
+                if (payment != null)
+                {
+                    _logger.LogWarning("Impossibile cancellare ordine {OrderId}: esiste già un pagamento con stato {PaymentStatus}", orderId, payment.Status);
+                    return null;
+                }
+
+                var existingOrder = await _orderRepository.GetOrderByIdAsync(orderId, cancellationToken);
+                if (existingOrder == null)
+                {
+                    _logger.LogWarning("Ordine {OrderId} non trovato per la cancellazione", orderId);
+                    return null;
+                }
+
+                // Verifica se l'ordine può essere cancellato
+                if (existingOrder.Status == OrderStatus.Cancelled)
+                {
+                    _logger.LogWarning("Ordine {OrderId} è già stato cancellato", orderId);
+                    return MapOrderToDto(existingOrder);
+                }
+
+                if (existingOrder.Status == OrderStatus.Completed)
+                {
+                    _logger.LogWarning("Impossibile cancellare ordine {OrderId}: ordine già completato", orderId);
+                    return null;
+                }
+
+                // Aggiorna lo status a "Cancelled"
+                existingOrder.Status = OrderStatus.Cancelled;
+                existingOrder.UpdatedAt = DateTime.UtcNow;
+
+                // Salva le modifiche nel database
+                await _orderRepository.SaveChanges(cancellationToken);
+
+                _logger.LogInformation("Ordine {OrderId} aggiornato a status 'Cancelled'", orderId);
+
+                // Crea l'evento di cancellazione per Kafka
+                var orderCancelledEvent = new OrderCancelledEvent
+                {
+                    OrderId = orderId,
+                    CustomerId = existingOrder.CustomerId,
+                    CancelReason = "Cancellazione richiesta dall'utente",
+                    Items = existingOrder.OrderItems.Select(item => new OrderItemEvent
+                    {
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        Price = item.UnitPrice
+                    }).ToList(),
+                    Timestamp = DateTime.UtcNow
+                };
+
+                // Pubblica l'evento di cancellazione su Kafka
+                try
+                {
+                    _logger.LogInformation("Pubblicazione evento OrderCancelled su Kafka per ordine {OrderId}", orderId);
+                    await _kafkaProducer.ProduceAsync(_kafkaSettings.OrderCancelledTopic, $"order-{orderId}", orderCancelledEvent);
+                    _logger.LogInformation("Evento OrderCancelled pubblicato con successo per ordine {OrderId}", orderId);
+                }
+                catch (Exception kafkaEx)
+                {
+                    _logger.LogError(kafkaEx, "Errore durante la pubblicazione dell'evento OrderCancelled per ordine {OrderId}: {ErrorMessage}", 
+                        orderId, kafkaEx.Message);
+                }
+
+                _logger.LogInformation("Cancellazione ordine {OrderId} completata con successo", orderId);
+                return MapOrderToDto(existingOrder);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la cancellazione dell'ordine {OrderId}: {ErrorMessage}", 
+                    orderId, ex.Message);
+                return null;
+            }
+        }
     }
 }

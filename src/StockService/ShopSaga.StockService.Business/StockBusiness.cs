@@ -335,9 +335,9 @@ namespace ShopSaga.StockService.Business
                     _logger.LogInformation("Tutte le prenotazioni stock per l'ordine {OrderId} sono state cancellate", orderId);
                     try
                     {
-                        // Aggiorna lo stato dell'ordine dopo la cancellazione delle prenotazioni
-                        var updatedOrder = await _orderHttp.UpdateOrderAsync(orderId, new UpdateOrderDTO { Status = "StockCancelled" }, cancellationToken);
-                        if (updatedOrder != null)
+                        // Aggiorna solo lo stato dell'ordine dopo la cancellazione delle prenotazioni
+                        var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderId, "StockCancelled", cancellationToken);
+                        if (statusUpdateResult)
                         {
                             _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockCancelled'", orderId);
                         }
@@ -411,6 +411,49 @@ namespace ShopSaga.StockService.Business
             _logger.LogError(ex, "Errore durante l'elaborazione dell'evento OrderCreated per l'ordine {OrderId}", orderCreatedEvent.OrderId);
         }
     }
+
+        public async Task ProcessOrderCancelledEventAsync(OrderCancelledEvent orderCancelledEvent, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Elaborazione evento OrderCancelled per ordine {OrderId}", orderCancelledEvent.OrderId);
+
+                // Cancella tutte le prenotazioni stock per questo ordine
+                var success = await CancelAllStockReservationsForOrderAsync(orderCancelledEvent.OrderId, cancellationToken);
+                
+                if (success)
+                {
+                    _logger.LogInformation("Tutte le prenotazioni stock per l'ordine {OrderId} sono state cancellate con successo", orderCancelledEvent.OrderId);
+                    
+                    try
+                    {
+                        // Conferma la cancellazione aggiornando lo stato dell'ordine
+                        var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderCancelledEvent.OrderId, "StockCancelled", cancellationToken);
+                        if (statusUpdateResult)
+                        {
+                            _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockCancelled' dopo la cancellazione delle prenotazioni", orderCancelledEvent.OrderId);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Impossibile aggiornare lo stato dell'ordine {OrderId} a 'StockCancelled'", orderCancelledEvent.OrderId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Errore durante l'aggiornamento dello stato dell'ordine {OrderId} a 'StockCancelled': {ErrorMessage}", 
+                            orderCancelledEvent.OrderId, ex.Message);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Impossibile cancellare le prenotazioni stock per l'ordine {OrderId}", orderCancelledEvent.OrderId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'elaborazione dell'evento OrderCancelled per l'ordine {OrderId}", orderCancelledEvent.OrderId);
+            }
+        }
 
         #endregion
 

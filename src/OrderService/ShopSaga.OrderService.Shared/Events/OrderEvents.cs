@@ -11,6 +11,14 @@ namespace ShopSaga.OrderService.Shared.Events
         public List<OrderItemEvent> Items { get; set; } = new List<OrderItemEvent>();
     }
 
+    public class OrderCancelledEvent : BaseEvent
+    {
+        public int OrderId { get; set; }
+        public Guid CustomerId { get; set; }
+        public string CancelReason { get; set; }
+        public List<OrderItemEvent> Items { get; set; } = new List<OrderItemEvent>();
+    }
+
     public class OrderItemEvent
     {
         public Guid ProductId { get; set; }

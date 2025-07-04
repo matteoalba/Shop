@@ -32,7 +32,8 @@ namespace ShopSaga.StockService.Business.Abstraction
         // Query utili
         Task<int> GetAvailableStockAsync(Guid productId, CancellationToken cancellationToken = default);
         
-        // Kafka
+        // Kafka Events
         Task ProcessOrderCreatedEventAsync(OrderCreatedEvent orderCreatedEvent, CancellationToken cancellationToken = default);
+        Task ProcessOrderCancelledEventAsync(OrderCancelledEvent orderCancelledEvent, CancellationToken cancellationToken = default);
     }
 }

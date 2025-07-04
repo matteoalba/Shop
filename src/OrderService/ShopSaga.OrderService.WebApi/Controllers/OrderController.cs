@@ -230,5 +230,30 @@ namespace ShopSaga.OrderService.WebApi.Controllers
                 return StatusCode(500, false);
             }
         }
+
+        [HttpPut("{orderId}/cancel")]
+        public async Task<ActionResult<OrderDTO>> CancelOrder(int orderId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Ricevuta richiesta per cancellare l'ordine con ID: {OrderId}", orderId);
+
+                var result = await _orderBusiness.CancelOrderAsync(orderId, cancellationToken);
+
+                if (result == null)
+                {
+                    _logger.LogWarning("Ordine con ID {OrderId} non trovato o già cancellato", orderId);
+                    return NotFound($"Ordine con ID {orderId} non trovato o non può essere cancellato");
+                }
+
+                _logger.LogInformation("Ordine {OrderId} cancellato con successo", orderId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la cancellazione dell'ordine {OrderId}", orderId);
+                return StatusCode(500, "Si è verificato un errore durante l'elaborazione della richiesta");
+            }
+        }
     }
 }

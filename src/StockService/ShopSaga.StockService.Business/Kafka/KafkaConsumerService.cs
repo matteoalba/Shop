@@ -60,6 +60,9 @@ namespace ShopSaga.StockService.Business.Kafka
                 ConnectionsMaxIdleMs = 60000,
                 SessionTimeoutMs = 30000,
                 MaxPollIntervalMs = 300000,
+                // Aggiungiamo configurazioni per gestire meglio i topic mancanti
+                AllowAutoCreateTopics = true,
+                TopicMetadataRefreshIntervalMs = 30000
             };
 
             try
@@ -84,32 +87,44 @@ namespace ShopSaga.StockService.Business.Kafka
         private async Task StartKafkaConsumerAsync(CancellationToken stoppingToken)
         {
             await Task.Delay(5000, stoppingToken);
-            _logger.LogInformation("Tentativo di connessione a Kafka con BootstrapServers: {BootstrapServers}, GroupId: {GroupId}, Topic: {Topic}",
-                _settings.BootstrapServers, _settings.GroupId, _settings.OrderCreatedTopic);
+            _logger.LogInformation("Tentativo di connessione a Kafka con BootstrapServers: {BootstrapServers}, GroupId: {GroupId}, Topics: {OrderCreatedTopic}, {OrderCancelledTopic}",
+                _settings.BootstrapServers, _settings.GroupId, _settings.OrderCreatedTopic, _settings.OrderCancelledTopic);
 
             bool isKafkaConnected = false;
             int retryCount = 0;
 
-            while (!isKafkaConnected && !stoppingToken.IsCancellationRequested && retryCount < 5)
+            while (!isKafkaConnected && !stoppingToken.IsCancellationRequested && retryCount < 10)
             {
                 try
                 {
-                    _consumer.Subscribe(_settings.OrderCreatedTopic);
+                    // Sottoscrive entrambi i topic
+                    var topics = new List<string> { _settings.OrderCreatedTopic, _settings.OrderCancelledTopic };
+                    _consumer.Subscribe(topics);
+                    
+                    // Prova a fare un consume di test per verificare che i topic siano accessibili
+                    var testResult = _consumer.Consume(TimeSpan.FromMilliseconds(500));
+                    // Se arriviamo qui, la connessione è OK (anche se non ci sono messaggi)
+                    
                     isKafkaConnected = true;
-                    _logger.LogInformation("Kafka consumer avviato. In ascolto sul topic: {Topic}", _settings.OrderCreatedTopic);
+                    _logger.LogInformation("Kafka consumer avviato. In ascolto sui topic: {Topics}", string.Join(", ", topics));
+                }
+                catch (ConsumeException ex)
+                {
+                    retryCount++;
+                    _logger.LogWarning("Tentativo {RetryCount}/10: Topic non ancora disponibili ({ErrorReason}). Riprovo tra 3 secondi...", retryCount, ex.Error.Reason);
+                    await Task.Delay(3000, stoppingToken);
                 }
                 catch (Exception ex)
                 {
                     retryCount++;
-                    _logger.LogWarning(ex, "Tentativo {RetryCount}/5 fallito di connessione a Kafka: {Error}", retryCount, ex.Message);
+                    _logger.LogWarning(ex, "Tentativo {RetryCount}/10 fallito di connessione a Kafka: {Error}", retryCount, ex.Message);
                     await Task.Delay(2000, stoppingToken);
                 }
             }
 
             if (!isKafkaConnected && !stoppingToken.IsCancellationRequested)
             {
-                _logger.LogError("Impossibile connettersi a Kafka dopo 5 tentativi. Il servizio continuerà senza consumer Kafka.");
-                return;
+                _logger.LogError("Impossibile connettersi a Kafka dopo 10 tentativi. I topic potrebbero non essere ancora stati creati. Il servizio continuerà a provare durante il polling normale.");
             }
 
             try
@@ -130,6 +145,21 @@ namespace ShopSaga.StockService.Business.Kafka
                     catch (OperationCanceledException)
                     {
                         break;
+                    }
+                    catch (ConsumeException ex)
+                    {
+                        _logger.LogWarning("Topic non ancora disponibili durante il polling. Riprovo a sottoscrivermi...");
+                        try
+                        {
+                            var topics = new List<string> { _settings.OrderCreatedTopic, _settings.OrderCancelledTopic };
+                            _consumer.Subscribe(topics);
+                            _logger.LogInformation("Ri-sottoscrizione ai topic completata");
+                        }
+                        catch (Exception subEx)
+                        {
+                            _logger.LogWarning(subEx, "Errore durante la ri-sottoscrizione ai topic");
+                        }
+                        await Task.Delay(5000, stoppingToken);
                     }
                     catch (Exception ex)
                     {
@@ -173,7 +203,7 @@ namespace ShopSaga.StockService.Business.Kafka
                             consumeResult.Topic, consumeResult.Message.Key);
                         _logger.LogInformation("Elaborazione messaggio con chiave {Key}, offset {Offset} da {Topic}...",
                             consumeResult.Message.Key, consumeResult.Offset, consumeResult.Topic);
-                        await ProcessMessageAsync(consumeResult.Message.Value, cancellationToken);
+                        await ProcessMessageAsync(consumeResult.Topic, consumeResult.Message.Value, cancellationToken);
                         _consumer.Commit(consumeResult);
                         _logger.LogInformation("Offset committato per {Topic}, Partition: {Partition}, Offset: {Offset}",
                             consumeResult.Topic, consumeResult.Partition, consumeResult.Offset);
@@ -198,19 +228,35 @@ namespace ShopSaga.StockService.Business.Kafka
             }
         }
 
-        private async Task ProcessMessageAsync(string message, CancellationToken cancellationToken)
+        private async Task ProcessMessageAsync(string topic, string message, CancellationToken cancellationToken)
         {
             try
             {
-                // Qui deserializziamo l'evento e invochiamo la business logic
-                var orderCreatedEvent = JsonSerializer.Deserialize<OrderCreatedEvent>(message);
                 using var scope = _serviceProvider.CreateScope();
                 var stockBusiness = scope.ServiceProvider.GetRequiredService<IStockBusiness>();
-                await stockBusiness.ProcessOrderCreatedEventAsync(orderCreatedEvent, cancellationToken);
+                
+                if (topic == _settings.OrderCreatedTopic)
+                {
+                    // Gestisce eventi di creazione ordine
+                    var orderCreatedEvent = JsonSerializer.Deserialize<OrderCreatedEvent>(message);
+                    await stockBusiness.ProcessOrderCreatedEventAsync(orderCreatedEvent, cancellationToken);
+                    _logger.LogInformation("Evento OrderCreated elaborato con successo per ordine {OrderId}", orderCreatedEvent.OrderId);
+                }
+                else if (topic == _settings.OrderCancelledTopic)
+                {
+                    // Gestisce eventi di cancellazione ordine
+                    var orderCancelledEvent = JsonSerializer.Deserialize<OrderCancelledEvent>(message);
+                    await stockBusiness.ProcessOrderCancelledEventAsync(orderCancelledEvent, cancellationToken);
+                    _logger.LogInformation("Evento OrderCancelled elaborato con successo per ordine {OrderId}", orderCancelledEvent.OrderId);
+                }
+                else
+                {
+                    _logger.LogWarning("Topic non riconosciuto: {Topic}. Messaggio ignorato.", topic);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'elaborazione del messaggio: {Message}", message);
+                _logger.LogError(ex, "Errore durante l'elaborazione del messaggio dal topic {Topic}: {Message}", topic, message);
             }
         }
     }

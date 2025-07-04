@@ -244,10 +244,7 @@ namespace ShopSaga.PaymentService.Business
                 }
                 
                 // STEP 3: Aggiorna stato ordine a Refunded
-                await _orderHttp.UpdateOrderAsync(refundPayment.OrderId, new ShopSaga.OrderService.Shared.UpdateOrderDTO
-                {
-                    Status = "Refunded"
-                }, cancellationToken);
+                await _orderHttp.UpdateOrderStatusAsync(refundPayment.OrderId, "Refunded", cancellationToken);
                 
                 return MapToDTO(refundPayment);
             }
@@ -294,10 +291,7 @@ namespace ShopSaga.PaymentService.Business
                 }
                 
                 // STEP 3: Aggiorna stato ordine a Cancelled
-                await _orderHttp.UpdateOrderAsync(cancelledPayment.OrderId, new ShopSaga.OrderService.Shared.UpdateOrderDTO
-                {
-                    Status = "Cancelled"
-                }, cancellationToken);
+                await _orderHttp.UpdateOrderStatusAsync(cancelledPayment.OrderId, "PaymentCancelled", cancellationToken);
                 
                 return MapToDTO(cancelledPayment);
             }
