@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ShopSaga.OrderService.Shared.Events;
 
 namespace ShopSaga.StockService.Business.Abstraction
 {
@@ -30,5 +31,8 @@ namespace ShopSaga.StockService.Business.Abstraction
 
         // Query utili
         Task<int> GetAvailableStockAsync(Guid productId, CancellationToken cancellationToken = default);
+        
+        // Kafka
+        Task ProcessOrderCreatedEventAsync(OrderCreatedEvent orderCreatedEvent, CancellationToken cancellationToken = default);
     }
 }

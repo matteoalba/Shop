@@ -141,18 +141,17 @@ Lasciandolo cosi il client deve conoscere e inviare tutti gli items, anche quell
 di rimuovere items per errore.
 
 - 2: Capire il delete nello stock.
+- 3: Operazioni di compensazione
 
 
 TODO:
 
- - StockService
- - Una volta finito StockService, creare tutti i ClientHttp.
- - Una volta fatto i clientHttp, guardare come collegare tutti i microservizi tra loro.
  - Implementare kafka.
  - Controllare infine se sono presenti transazioni di avanzamento e di compensazione per portare a termine la transazione distribuita o effettuarne il rollback
  - Implementare anche la transazione pivot e una transazione ripetibile (hint: background service).
  - Creare immagine di ogni microservizio da mettere poi su github.
- - Aggiungere "UpdateStatus" in orderservice
+
+
 
 
 

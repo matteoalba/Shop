@@ -12,6 +12,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ShopSaga.OrderService.Business.Kafka;
+using ShopSaga.OrderService.Shared.Events;
+using Microsoft.Extensions.Options;
 
 namespace ShopSaga.OrderService.Business
 {
@@ -21,13 +24,23 @@ namespace ShopSaga.OrderService.Business
         private readonly ILogger<OrderBusiness> _logger;
         private readonly IPaymentHttp _paymentHttp;
         private readonly IStockHttp _stockHttp;
+        private readonly IKafkaProducer _kafkaProducer;
+        private readonly KafkaSettings _kafkaSettings;
         
-        public OrderBusiness(IOrderRepository orderRepository, ILogger<OrderBusiness> logger, IPaymentHttp paymentHttp, IStockHttp stockHttp)
+        public OrderBusiness(
+            IOrderRepository orderRepository, 
+            ILogger<OrderBusiness> logger, 
+            IPaymentHttp paymentHttp, 
+            IStockHttp stockHttp,
+            IKafkaProducer kafkaProducer,
+            IOptions<KafkaSettings> kafkaSettings)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
             _paymentHttp = paymentHttp ?? throw new ArgumentNullException(nameof(paymentHttp));
             _stockHttp = stockHttp ?? throw new ArgumentNullException(nameof(stockHttp));
+            _kafkaProducer = kafkaProducer ?? throw new ArgumentNullException(nameof(kafkaProducer));
+            _kafkaSettings = kafkaSettings.Value ?? throw new ArgumentNullException(nameof(kafkaSettings));
         }
 
         public async Task<OrderDTO> CreateOrderAsync(OrderDTO orderDto, CancellationToken cancellationToken = default)
@@ -92,57 +105,49 @@ namespace ShopSaga.OrderService.Business
                 // Salvataggio delle modifiche
                 await _orderRepository.SaveChanges(cancellationToken);
 
-                _logger.LogInformation("Ordine {OrderId} creato, ora procedo con la prenotazione stock", createdOrder.Id);
+                _logger.LogInformation("Ordine {OrderId} creato, ora pubblico l'evento su Kafka", createdOrder.Id);
 
-                // Ora prenota lo stock per tutti gli items (SAGA step)
-                try 
+                // Pubblica evento OrderCreated su Kafka
+                var eventOrderItems = orderDto.OrderItems.Select(item => new OrderItemEvent
                 {
-                    // Prepara le prenotazioni per tutti gli items usando ReserveStockDTO
-                    var reservations = orderDto.OrderItems.Select(item => new 
-                    {
-                        ProductId = item.ProductId,
-                        OrderId = createdOrder.Id,
-                        Quantity = item.Quantity
-                    }).ToList();
-
-                    _logger.LogInformation("Creazione prenotazioni stock per {ItemCount} items dell'ordine {OrderId}", 
-                        reservations.Count, createdOrder.Id);
-
-                    // Converte in ReserveStockDTO per la chiamata HTTP
-                    var reserveDtos = reservations.Select(r => new ReserveStockDTO 
-                    {
-                        ProductId = r.ProductId,
-                        OrderId = r.OrderId,
-                        Quantity = r.Quantity
-                    }).ToList();
-
-                    // Chiamata batch al StockService
-                    var reservationResults = await _stockHttp.ReserveMultipleStockAsync(reserveDtos, cancellationToken);
-                    
-                    if (reservationResults == null || !reservationResults.Any())
-                    {
-                        throw new InvalidOperationException("Nessuna prenotazione stock creata dal StockService");
-                    }
-
-                    _logger.LogInformation("Prenotazione stock completata per ordine {OrderId}: {Count} prenotazioni create", 
-                        createdOrder.Id, reservationResults.Count());
-                    
-                    // Aggiorna stato ordine a StockReserved
-                    createdOrder.Status = OrderStatus.StockReserved;
-                    createdOrder.UpdatedAt = DateTime.UtcNow;
-                    await _orderRepository.SaveChanges(cancellationToken);
-                }
-                catch (Exception ex)
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    Price = item.UnitPrice
+                }).ToList();
+                
+                var orderCreatedEvent = new OrderCreatedEvent
                 {
-                    _logger.LogError(ex, "Errore durante prenotazione stock per ordine {OrderId}", createdOrder.Id);
+                    OrderId = createdOrder.Id,
+                    CustomerId = createdOrder.CustomerId,
+                    TotalAmount = createdOrder.TotalAmount,
+                    Items = eventOrderItems
+                };
+                
+                // Pubblicazione asincrona dell'evento
+                var publishResult = await _kafkaProducer.ProduceAsync(
+                    _kafkaSettings.OrderCreatedTopic,
+                    $"order-{createdOrder.Id}",
+                    orderCreatedEvent);
+                
+                if (!publishResult)
+                {
+                    _logger.LogError("Non è stato possibile pubblicare l'evento OrderCreated su Kafka per l'ordine {OrderId}. L'ordine verrà cancellato.", createdOrder.Id);
                     
                     // Compensazione: cancella l'ordine creato
                     await _orderRepository.DeleteOrderAsync(createdOrder.Id, cancellationToken);
                     await _orderRepository.SaveChanges(cancellationToken);
                     
-                    _logger.LogInformation("Ordine {OrderId} cancellato a causa dell'errore nella prenotazione stock", createdOrder.Id);
+                    _logger.LogInformation("Ordine {OrderId} cancellato a causa dell'errore nella pubblicazione dell'evento Kafka", createdOrder.Id);
                     return null;
                 }
+                
+                _logger.LogInformation("Evento OrderCreated pubblicato con successo per l'ordine {OrderId}. La prenotazione stock sarà gestita tramite Kafka.", createdOrder.Id);
+                
+                // Aggiorna stato ordine a StockPending
+                createdOrder.Status = OrderStatus.StockPending;
+                createdOrder.UpdatedAt = DateTime.UtcNow;
+                await _orderRepository.SaveChanges(cancellationToken);
+
 
                 // Mapping dell'ordine creato per il DTO di ritorno
                 var resultDto = MapOrderToDto(createdOrder);

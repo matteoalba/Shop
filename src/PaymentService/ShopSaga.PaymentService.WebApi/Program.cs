@@ -26,7 +26,7 @@ builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 // Configurazione HTTP Client per StockService
 builder.Services.AddHttpClient<IStockHttp, StockHttp>(client =>
 {
-    var stockServiceUrl = builder.Configuration.GetValue<string>("StockService:BaseUrl") ?? "http://localhost:5002/";
+    var stockServiceUrl = builder.Configuration.GetValue<string>("StockService:BaseUrl") ?? "http://localhost:5003/";
     client.BaseAddress = new Uri(stockServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });

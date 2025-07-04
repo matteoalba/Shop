@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ShopSaga.OrderService.Shared.Events;
 
 namespace ShopSaga.StockService.Business
 {
@@ -33,7 +34,6 @@ namespace ShopSaga.StockService.Business
             var product = await _stockRepository.GetProductByIdAsync(id, cancellationToken);
             if (product == null)
                 return null;
-
             return MapToProductDTO(product);
         }
 
@@ -54,13 +54,10 @@ namespace ShopSaga.StockService.Business
                     Price = createProductDto.Price,
                     QuantityInStock = createProductDto.QuantityInStock
                 };
-
                 var createdProduct = await _stockRepository.CreateProductAsync(product, cancellationToken);
                 _logger.LogInformation("Prodotto creato con successo: {ProductName} (ID: {ProductId})", 
                     createdProduct.Name, createdProduct.Id);
-
                 await _stockRepository.SaveChanges(cancellationToken);
-
                 return MapToProductDTO(createdProduct);
             }
             catch (Exception ex)
@@ -80,18 +77,14 @@ namespace ShopSaga.StockService.Business
                     _logger.LogWarning("Tentativo di aggiornamento di un prodotto inesistente: {ProductId}", id);
                     return null;
                 }
-
                 existingProduct.Name = updateProductDto.Name;
                 existingProduct.Description = updateProductDto.Description;
                 existingProduct.Price = updateProductDto.Price;
                 existingProduct.QuantityInStock = updateProductDto.QuantityInStock;
-
                 var updatedProduct = await _stockRepository.UpdateProductAsync(existingProduct, cancellationToken);
                 _logger.LogInformation("Prodotto aggiornato con successo: {ProductName} (ID: {ProductId})", 
                     updatedProduct.Name, updatedProduct.Id);
-                
                 await _stockRepository.SaveChanges(cancellationToken);
-
                 return MapToProductDTO(updatedProduct);
             }
             catch (Exception ex)
@@ -111,13 +104,6 @@ namespace ShopSaga.StockService.Business
                     _logger.LogWarning("Tentativo di eliminazione di un prodotto inesistente: {ProductId}", id);
                     return false;
                 }
-
-                // Verifica se ci sono prenotazioni attive per questo prodotto
-                //var activeReservations = await _stockRepository.GetStockReservationsByOrderIdAsync(0, cancellationToken);
-                // TODO: Implementare un metodo per verificare prenotazioni per prodotto specifico
-                
-                // Per ora implementiamo una eliminazione logica o fisica semplice
-                // In un sistema reale, potremmo voler disabilitare il prodotto invece di eliminarlo
                 var result = await _stockRepository.DeleteProductAsync(id, cancellationToken);
                 if (!result)
                 {
@@ -160,24 +146,19 @@ namespace ShopSaga.StockService.Business
                 {
                     throw new ArgumentException($"Prodotto con ID {reserveStockDto.ProductId} non trovato");
                 }
-
                 if (product.QuantityInStock < reserveStockDto.Quantity)
                 {
                     throw new InvalidOperationException($"Stock insufficiente per il prodotto '{product.Name}'. " +
                         $"Disponibile: {product.QuantityInStock}, Richiesto: {reserveStockDto.Quantity}");
                 }
-
                 var reservation = await _stockRepository.CreateStockReservationAsync(
                     reserveStockDto.OrderId, 
                     reserveStockDto.ProductId, 
                     reserveStockDto.Quantity, 
                     cancellationToken);
-
                 _logger.LogInformation("Stock riservato con successo per l'ordine {OrderId}: {Quantity} unità del prodotto {ProductName}",
                     reserveStockDto.OrderId, reserveStockDto.Quantity, product.Name);
-
                 await _stockRepository.SaveChanges(cancellationToken);
-
                 return MapToStockReservationDTO(reservation, product.Name);
             }
             catch (Exception ex)
@@ -197,13 +178,10 @@ namespace ShopSaga.StockService.Business
                     _logger.LogWarning("Nessuna prenotazione stock trovata per l'ordine {OrderId}", orderId);
                     return false;
                 }
-
                 var success = true;
                 var confirmedCount = 0;
-
                 foreach (var reservation in reservations)
                 {
-                    // Conferma solo le prenotazioni che sono nello stato "Reserved"
                     if (reservation.Status == "Reserved")
                     {
                         var result = await _stockRepository.ConfirmStockReservationAsync(reservation.Id, cancellationToken);
@@ -226,22 +204,15 @@ namespace ShopSaga.StockService.Business
                             reservation.Id, reservation.Status);
                     }
                 }
-
                 if (success && confirmedCount > 0)
                 {
                     _logger.LogInformation("Tutte le prenotazioni stock per l'ordine {OrderId} sono state confermate con successo. Totale confermate: {Count}", 
                         orderId, confirmedCount);
-                    
-                    // Aggiorna lo stato dell'ordine a "StockConfirmed" dopo aver confermato tutte le prenotazioni
                     try
                     {
-                        var updateOrderDto = new UpdateOrderDTO
-                        {
-                            Status = "StockConfirmed"
-                        };
-
-                        var updatedOrder = await _orderHttp.UpdateOrderStatusAsync(orderId, "StockConfirmed", cancellationToken);
-                        if (updatedOrder != null)
+                        // Aggiorna lo stato dell'ordine dopo la conferma delle prenotazioni
+                        var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderId, "StockConfirmed", cancellationToken);
+                        if (statusUpdateResult)
                         {
                             _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockConfirmed'", orderId);
                         }
@@ -253,7 +224,6 @@ namespace ShopSaga.StockService.Business
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Errore durante l'aggiornamento dello stato dell'ordine {OrderId} a 'StockConfirmed'", orderId);
-                        // Non fallire l'operazione principale per questo errore
                     }
                 }
                 else if (confirmedCount == 0)
@@ -276,7 +246,6 @@ namespace ShopSaga.StockService.Business
             try
             {
                 var result = await _stockRepository.CancelStockReservationAsync(reservationId, cancellationToken);
-                
                 if (result)
                 {
                     _logger.LogInformation("Prenotazione stock cancellata con successo: {ReservationId}", reservationId);
@@ -285,7 +254,6 @@ namespace ShopSaga.StockService.Business
                 {
                     _logger.LogWarning("Impossibile cancellare la prenotazione stock: {ReservationId}", reservationId);
                 }
-
                 await _stockRepository.SaveChanges(cancellationToken);
                 return result;
             }
@@ -301,7 +269,6 @@ namespace ShopSaga.StockService.Business
             var reservation = await _stockRepository.GetStockReservationByIdAsync(reservationId, cancellationToken);
             if (reservation == null)
                 return null;
-
             return MapToStockReservationDTO(reservation, reservation.Product?.Name ?? "Prodotto sconosciuto");
         }
 
@@ -315,7 +282,6 @@ namespace ShopSaga.StockService.Business
         {
             var results = new List<StockReservationDTO>();
             var reservedItems = new List<Guid>();
-
             try
             {
                 foreach (var reserveDto in reserveStockDtos)
@@ -324,7 +290,6 @@ namespace ShopSaga.StockService.Business
                     results.Add(reservation);
                     reservedItems.Add(reservation.Id);
                 }
-
                 _logger.LogInformation("Prenotazione multipla completata con successo per l'ordine {OrderId}: {Count} articoli",
                     reserveStockDtos.First().OrderId, results.Count);
                 await _stockRepository.SaveChanges(cancellationToken);
@@ -332,9 +297,8 @@ namespace ShopSaga.StockService.Business
             }
             catch (Exception ex)
             {
-                // In caso di errore, annulla tutte le prenotazioni già effettuate
+                // Se qualcosa va storto, annulla tutte le prenotazioni già fatte
                 _logger.LogError(ex, "Errore durante la prenotazione multipla. Annullamento delle prenotazioni già effettuate...");
-                
                 foreach (var reservationId in reservedItems)
                 {
                     try
@@ -346,7 +310,6 @@ namespace ShopSaga.StockService.Business
                         _logger.LogError(cancelEx, "Errore durante l'annullamento della prenotazione {ReservationId}", reservationId);
                     }
                 }
-
                 throw;
             }
         }
@@ -357,7 +320,6 @@ namespace ShopSaga.StockService.Business
             {
                 var reservations = await _stockRepository.GetStockReservationsByOrderIdAsync(orderId, cancellationToken);
                 var success = true;
-
                 foreach (var reservation in reservations)
                 {
                     var result = await _stockRepository.CancelStockReservationAsync(reservation.Id, cancellationToken);
@@ -368,20 +330,13 @@ namespace ShopSaga.StockService.Business
                             reservation.Id, orderId);
                     }
                 }
-
                 if (success)
                 {
                     _logger.LogInformation("Tutte le prenotazioni stock per l'ordine {OrderId} sono state cancellate", orderId);
-                    
-                    // Aggiorna lo stato dell'ordine a "StockCancelled" dopo aver cancellato tutte le prenotazioni
                     try
                     {
-                        var updateOrderDto = new UpdateOrderDTO
-                        {
-                            Status = "StockCancelled"
-                        };
-                        
-                        var updatedOrder = await _orderHttp.UpdateOrderAsync(orderId, updateOrderDto, cancellationToken);
+                        // Aggiorna lo stato dell'ordine dopo la cancellazione delle prenotazioni
+                        var updatedOrder = await _orderHttp.UpdateOrderAsync(orderId, new UpdateOrderDTO { Status = "StockCancelled" }, cancellationToken);
                         if (updatedOrder != null)
                         {
                             _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockCancelled'", orderId);
@@ -394,7 +349,6 @@ namespace ShopSaga.StockService.Business
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Errore durante l'aggiornamento dello stato dell'ordine {OrderId} a 'StockCancelled'", orderId);
-                        // Non fallire l'operazione principale per questo errore
                     }
                 }
                 await _stockRepository.SaveChanges(cancellationToken);
@@ -406,6 +360,57 @@ namespace ShopSaga.StockService.Business
                 throw;
             }
         }
+
+    public async Task ProcessOrderCreatedEventAsync(OrderCreatedEvent orderCreatedEvent, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Elaborazione evento OrderCreated per ordine {OrderId}", orderCreatedEvent.OrderId);
+            if (orderCreatedEvent.Items == null || !orderCreatedEvent.Items.Any())
+            {
+                _logger.LogWarning("Evento OrderCreated ricevuto senza articoli per l'ordine {OrderId}", orderCreatedEvent.OrderId);
+                return;
+            }
+            // Prepara le richieste di prenotazione stock per ogni item dell'ordine
+            var reserveStockDtos = orderCreatedEvent.Items.Select(item => new ReserveStockDTO
+            {
+                OrderId = orderCreatedEvent.OrderId,
+                ProductId = item.ProductId,
+                Quantity = item.Quantity
+            }).ToList();
+            var reservationResults = await ReserveMultipleStockAsync(reserveStockDtos, cancellationToken);
+            if (reservationResults == null || !reservationResults.Any())
+            {
+                _logger.LogWarning("Nessuna prenotazione stock creata da evento Kafka per l'ordine {OrderId}", orderCreatedEvent.OrderId);
+                return;
+            }
+            _logger.LogInformation("Prenotazione stock completata da evento Kafka per l'ordine {OrderId}: {Count} prenotazioni create", 
+                orderCreatedEvent.OrderId, reservationResults.Count());
+            try 
+            {
+                // Dopo la prenotazione, aggiorna lo stato ordine tramite HTTP
+                _logger.LogInformation("Tentativo di aggiornare lo stato dell'ordine {OrderId} a 'StockReserved'", orderCreatedEvent.OrderId);
+                var success = await _orderHttp.UpdateOrderStatusAsync(orderCreatedEvent.OrderId, "StockReserved", cancellationToken);
+                if (success)
+                {
+                    _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockReserved' dopo la prenotazione dello stock", orderCreatedEvent.OrderId);
+                }
+                else
+                {
+                    _logger.LogWarning("Impossibile aggiornare lo stato dell'ordine {OrderId} a 'StockReserved' dopo la prenotazione dello stock", orderCreatedEvent.OrderId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento dello stato dell'ordine {OrderId} a 'StockReserved': {ErrorMessage}", 
+                    orderCreatedEvent.OrderId, ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Errore durante l'elaborazione dell'evento OrderCreated per l'ordine {OrderId}", orderCreatedEvent.OrderId);
+        }
+    }
 
         #endregion
 

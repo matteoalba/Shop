@@ -209,20 +209,24 @@ namespace ShopSaga.OrderService.WebApi.Controllers
         [HttpPut("{orderId}/status")]
         public async Task<ActionResult<bool>> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderDTO updateOrderDto, CancellationToken cancellationToken = default)
         {
-            try
+            _logger.LogInformation("Ricevuta richiesta di aggiornamento stato per ordine {OrderId} a {Status}", 
+                orderId, updateOrderDto?.Status);
+            
+            try 
             {
-                _logger.LogInformation("Aggiornamento stato ordine {OrderId} a {Status}", orderId, updateOrderDto.Status);
                 var result = await _orderBusiness.UpdateOrderStatusAsync(orderId, updateOrderDto.Status, cancellationToken);
                 if (result == null)
                 {
-                    _logger.LogWarning("Aggiornamento stato ordine {OrderId} fallito", orderId);
+                    _logger.LogWarning("Ordine {OrderId} non trovato o aggiornamento fallito", orderId);
                     return NotFound(false);
                 }
+                
+                _logger.LogInformation("Ordine {OrderId} aggiornato con successo a {Status}", orderId, result.Status);
                 return Ok(true);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento stato ordine {OrderId}", orderId);
+                _logger.LogError(ex, "Errore durante l'aggiornamento dello stato dell'ordine {OrderId}", orderId);
                 return StatusCode(500, false);
             }
         }

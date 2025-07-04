@@ -17,6 +17,7 @@
     <ProjectReference Include="..\ShopSaga.StockService.Business\ShopSaga.StockService.Business.csproj" />
     <ProjectReference Include="..\ShopSaga.StockService.Shared\ShopSaga.StockService.Shared.csproj" />
     <ProjectReference Include="..\..\OrderService\ShopSaga.OrderService.ClientHttp\ShopSaga.OrderService.ClientHttp.csproj" />
+    <ProjectReference Include="..\..\OrderService\ShopSaga.OrderService.Shared\ShopSaga.OrderService.Shared.csproj" />
   </ItemGroup>
 
 </Project>

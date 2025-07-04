@@ -180,7 +180,8 @@ namespace ShopSaga.OrderService.ClientHttp
         {
             try
             {
-                var response = await _httpClient.PutAsJsonAsync($"Order/UpdateOrderStatus/{orderId}/status", new { Status = status }, _jsonOptions, cancellationToken);
+                var updateOrderDto = new UpdateOrderDTO { Status = status };
+                var response = await _httpClient.PutAsJsonAsync($"Order/UpdateOrderStatus/{orderId}/status", updateOrderDto, _jsonOptions, cancellationToken);
                 
                 if (response.IsSuccessStatusCode)
                 {
@@ -191,8 +192,10 @@ namespace ShopSaga.OrderService.ClientHttp
                 {
                     return false;
                 }
-                
-                throw new HttpRequestException($"Errore nella chiamata API: {response.StatusCode} - {response.ReasonPhrase}");
+
+                // In caso di errore, prova a leggere il corpo della risposta per un debug migliore
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new HttpRequestException($"Errore nella chiamata API: {response.StatusCode} - {errorContent}");
             }
             catch (Exception ex) when (!(ex is HttpRequestException))
             {

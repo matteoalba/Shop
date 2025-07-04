@@ -1,12 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "JXoUqZ1bizM=",
+  "dgSpecHash": "8tYWZSuJiEQ=",
   "success": true,
   "projectFilePath": "C:\\Users\\03mat\\Desktop\\Shop\\src\\OrderService\\ShopSaga.OrderService.Business\\ShopSaga.OrderService.Business.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\03mat\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",
     "C:\\Users\\03mat\\.nuget\\packages\\azure.identity\\1.7.0\\azure.identity.1.7.0.nupkg.sha512",
+    "C:\\Users\\03mat\\.nuget\\packages\\confluent.kafka\\2.10.1\\confluent.kafka.2.10.1.nupkg.sha512",
     "C:\\Users\\03mat\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
+    "C:\\Users\\03mat\\.nuget\\packages\\librdkafka.redist\\2.10.1\\librdkafka.redist.2.10.1.nupkg.sha512",
     "C:\\Users\\03mat\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\6.0.0\\microsoft.bcl.asyncinterfaces.6.0.0.nupkg.sha512",
     "C:\\Users\\03mat\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.3.3\\microsoft.codeanalysis.analyzers.3.3.3.nupkg.sha512",
     "C:\\Users\\03mat\\.nuget\\packages\\microsoft.codeanalysis.common\\4.5.0\\microsoft.codeanalysis.common.4.5.0.nupkg.sha512",

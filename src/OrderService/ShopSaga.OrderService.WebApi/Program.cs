@@ -7,12 +7,17 @@ using ShopSaga.PaymentService.ClientHttp.Abstraction;
 using ShopSaga.PaymentService.ClientHttp;
 using ShopSaga.StockService.ClientHttp.Abstraction;
 using ShopSaga.StockService.ClientHttp;
+using ShopSaga.OrderService.Business.Kafka;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddDbContext<OrderDbContext>(options => options.UseSqlServer("name=ConnectionStrings:OrderServiceDb", b => b.MigrationsAssembly("ShopSaga.OrderService.WebApi")));
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderBusiness, OrderBusiness>();
+
+// Configure Kafka Settings
+builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("Kafka"));
+builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
 
 // HTTP Clients
 builder.Services.AddHttpClient<IPaymentHttp, PaymentHttp>(client =>
