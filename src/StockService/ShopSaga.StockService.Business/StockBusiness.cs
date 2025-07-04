@@ -124,7 +124,15 @@ namespace ShopSaga.StockService.Business
         public async Task<bool> IsProductAvailableAsync(Guid productId, int quantity, CancellationToken cancellationToken = default)
         {
             var product = await _stockRepository.GetProductByIdAsync(productId, cancellationToken);
-            return product != null && product.QuantityInStock >= quantity;
+            if (product == null)
+            {
+                return false;
+            }
+            
+            _logger.LogInformation("Verifica disponibilità prodotto {ProductId}: Stock disponibile={Available}, Richiesto={Requested}", 
+                productId, product.QuantityInStock, quantity);
+            
+            return product.QuantityInStock >= quantity;
         }
 
         public async Task<int> GetAvailableStockAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -388,16 +396,55 @@ namespace ShopSaga.StockService.Business
                 orderCreatedEvent.OrderId, reservationResults.Count());
             try 
             {
-                // Dopo la prenotazione, aggiorna lo stato ordine tramite HTTP
+                // Dopo la prenotazione, aggiorna lo stato ordine tramite HTTP con retry logic
                 _logger.LogInformation("Tentativo di aggiornare lo stato dell'ordine {OrderId} a 'StockReserved'", orderCreatedEvent.OrderId);
-                var success = await _orderHttp.UpdateOrderStatusAsync(orderCreatedEvent.OrderId, "StockReserved", cancellationToken);
-                if (success)
+                
+                var success = false;
+                var retryCount = 0;
+                var maxRetries = 3;
+                
+                while (!success && retryCount < maxRetries)
                 {
-                    _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockReserved' dopo la prenotazione dello stock", orderCreatedEvent.OrderId);
+                    try
+                    {
+                        success = await _orderHttp.UpdateOrderStatusAsync(orderCreatedEvent.OrderId, "StockReserved", cancellationToken);
+                        if (success)
+                        {
+                            _logger.LogInformation("Stato dell'ordine {OrderId} aggiornato a 'StockReserved' dopo la prenotazione dello stock (tentativo {Retry})", 
+                                orderCreatedEvent.OrderId, retryCount + 1);
+                            break;
+                        }
+                        else
+                        {
+                            retryCount++;
+                            if (retryCount < maxRetries)
+                            {
+                                _logger.LogWarning("Tentativo {Retry}/{MaxRetries} fallito per aggiornamento stato ordine {OrderId}, riprovo tra 1 secondo...", 
+                                    retryCount, maxRetries, orderCreatedEvent.OrderId);
+                                await Task.Delay(1000, cancellationToken);
+                            }
+                        }
+                    }
+                    catch (Exception httpEx)
+                    {
+                        retryCount++;
+                        if (retryCount < maxRetries)
+                        {
+                            _logger.LogWarning(httpEx, "Errore HTTP tentativo {Retry}/{MaxRetries} per ordine {OrderId}, riprovo tra 2 secondi...", 
+                                retryCount, maxRetries, orderCreatedEvent.OrderId);
+                            await Task.Delay(2000, cancellationToken);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
                 }
-                else
+                
+                if (!success)
                 {
-                    _logger.LogWarning("Impossibile aggiornare lo stato dell'ordine {OrderId} a 'StockReserved' dopo la prenotazione dello stock", orderCreatedEvent.OrderId);
+                    _logger.LogError("Impossibile aggiornare lo stato dell'ordine {OrderId} a 'StockReserved' dopo {MaxRetries} tentativi. Stock prenotato ma ordine non aggiornato!", 
+                        orderCreatedEvent.OrderId, maxRetries);
                 }
             }
             catch (Exception ex)

@@ -147,7 +147,6 @@ di rimuovere items per errore.
 
 TODO:
 
- - Creare endpoint cancel order e implementarlo con kafka.
  - Fare tutti i test possibili e controllare che tutto funzioni.
  - Creare immagine di ogni microservizio da mettere poi su github.
 
