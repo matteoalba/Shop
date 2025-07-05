@@ -46,14 +46,14 @@ jobs:
       run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore --verbosity normal -p:TreatWarningsAsErrors=false
 
     - name: Pack NuGet package
-      run: dotnet pack ${{ matrix.project.path }} --configuration Release --no-build --output ./packages
+      run: dotnet pack ${{ matrix.project.path }} --configuration Release --no-build --output ./packages -p:TreatWarningsAsErrors=false
 
     - name: Publish to GitHub Packages
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
       run: |
         dotnet nuget push ./packages/*.nupkg \
           --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
-          --api-key ${{ secrets.matteoalba_NUGET_PASSWORD }} \
+          --api-key ${{ secrets.TOKEN }} \
           --skip-duplicate
       env:
-        NUGET_AUTH_TOKEN: ${{ secrets.matteoalba_NUGET_PASSWORD }}
+        NUGET_AUTH_TOKEN: ${{ secrets.TOKEN }}
