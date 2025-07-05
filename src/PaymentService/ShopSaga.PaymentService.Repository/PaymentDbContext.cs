@@ -86,6 +86,27 @@ namespace ShopSaga.PaymentService.Repository
                     .HasForeignKey(pr => pr.PaymentId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+
+            // Indici per ottimizzazione query
+            modelBuilder.Entity<Payment>()
+                .HasIndex(p => p.OrderId)
+                .HasDatabaseName("IX_Payments_OrderId");
+                
+            modelBuilder.Entity<Payment>()
+                .HasIndex(p => p.Status)
+                .HasDatabaseName("IX_Payments_Status");
+                
+            modelBuilder.Entity<Payment>()
+                .HasIndex(p => p.TransactionId)
+                .HasDatabaseName("IX_Payments_TransactionId");
+                
+            modelBuilder.Entity<Payment>()
+                .HasIndex(p => p.CreatedAt)
+                .HasDatabaseName("IX_Payments_CreatedAt");
+
+            modelBuilder.Entity<PaymentRefund>()
+                .HasIndex(pr => pr.PaymentId)
+                .HasDatabaseName("IX_PaymentRefund_PaymentId");
         }
     }
 }

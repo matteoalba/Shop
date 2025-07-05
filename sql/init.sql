@@ -124,18 +124,6 @@ BEGIN
     );
 END
 GO
--- Popolamento iniziale casuale
-IF NOT EXISTS (SELECT TOP 1 1 FROM Products)
-BEGIN
-    INSERT INTO Products (Id, Name, Description, Price, QuantityInStock, CreatedAt, UpdatedAt)
-    VALUES
-        (NEWID(), 'Laptop', 'High performance laptop', 1299.99, 50, GETDATE(), GETDATE()),
-        (NEWID(), 'Smartphone', 'Latest model smartphone', 799.99, 100, GETDATE(), GETDATE()),
-        (NEWID(), 'Tablet', '10-inch tablet', 499.99, 75, GETDATE(), GETDATE()),
-        (NEWID(), 'Headphones', 'Noise-cancelling headphones', 199.99, 150, GETDATE(), GETDATE()),
-        (NEWID(), 'Smart Watch', 'Fitness tracking watch', 249.99, 80, GETDATE(), GETDATE());
-END
-GO
 
 -- Indici
 CREATE NONCLUSTERED INDEX IX_Orders_CustomerId ON Orders(CustomerId);

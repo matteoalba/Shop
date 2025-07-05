@@ -30,10 +30,24 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Applicazione automatica delle migrations e seeding al primo avvio
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<StockDbContext>();
-    context.Database.EnsureCreated();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        var context = services.GetRequiredService<StockDbContext>();
+        
+        // Applica automaticamente le migrations (incluso il seeding)
+        await context.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Errore durante l'inizializzazione del database StockService");
+        throw;
+    }
 }
 
 if (app.Environment.IsDevelopment())

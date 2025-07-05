@@ -3,20 +3,17 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ShopSaga.PaymentService.Repository;
 
 #nullable disable
 
-namespace ShopSaga.PaymentService.Repository.Migrations
+namespace ShopSaga.PaymentService.WebApi.Migrations
 {
     [DbContext(typeof(PaymentDbContext))]
-    [Migration("20250628123102_FirstMigration")]
-    partial class FirstMigration
+    partial class PaymentDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -65,6 +62,18 @@ namespace ShopSaga.PaymentService.Repository.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_Payments_CreatedAt");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("IX_Payments_OrderId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Payments_Status");
+
+                    b.HasIndex("TransactionId")
+                        .HasDatabaseName("IX_Payments_TransactionId");
+
                     b.ToTable("Payments", (string)null);
                 });
 
@@ -99,7 +108,8 @@ namespace ShopSaga.PaymentService.Repository.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PaymentId");
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("IX_PaymentRefund_PaymentId");
 
                     b.ToTable("PaymentRefund", (string)null);
                 });

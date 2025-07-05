@@ -286,7 +286,15 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Confluent.Kafka": {
+              "target": "Package",
+              "version": "[2.10.1, )"
+            },
             "Microsoft.EntityFrameworkCore.Design": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Hosting.Abstractions": {
               "target": "Package",
               "version": "[8.0.0, )"
             }
@@ -566,6 +574,9 @@
             "projectReferences": {
               "C:\\Users\\03mat\\Desktop\\Shop\\src\\OrderService\\ShopSaga.OrderService.ClientHttp\\ShopSaga.OrderService.ClientHttp.csproj": {
                 "projectPath": "C:\\Users\\03mat\\Desktop\\Shop\\src\\OrderService\\ShopSaga.OrderService.ClientHttp\\ShopSaga.OrderService.ClientHttp.csproj"
+              },
+              "C:\\Users\\03mat\\Desktop\\Shop\\src\\OrderService\\ShopSaga.OrderService.Shared\\ShopSaga.OrderService.Shared.csproj": {
+                "projectPath": "C:\\Users\\03mat\\Desktop\\Shop\\src\\OrderService\\ShopSaga.OrderService.Shared\\ShopSaga.OrderService.Shared.csproj"
               },
               "C:\\Users\\03mat\\Desktop\\Shop\\src\\StockService\\ShopSaga.StockService.Business\\ShopSaga.StockService.Business.csproj": {
                 "projectPath": "C:\\Users\\03mat\\Desktop\\Shop\\src\\StockService\\ShopSaga.StockService.Business\\ShopSaga.StockService.Business.csproj"

@@ -3,20 +3,17 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ShopSaga.OrderService.Repository;
 
 #nullable disable
 
-namespace ShopSaga.OrderService.Repository.Migrations
+namespace ShopSaga.OrderService.WebApi.Migrations
 {
     [DbContext(typeof(OrderDbContext))]
-    [Migration("20250628122941_FirstMigration")]
-    partial class FirstMigration
+    partial class OrderDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -52,6 +49,15 @@ namespace ShopSaga.OrderService.Repository.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_Orders_CreatedAt");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("IX_Orders_CustomerId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Orders_Status");
+
                     b.ToTable("Orders", (string)null);
                 });
 
@@ -77,7 +83,11 @@ namespace ShopSaga.OrderService.Repository.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OrderId");
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("IX_OrderItems_OrderId");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("IX_OrderItems_ProductId");
 
                     b.ToTable("OrderItems", (string)null);
                 });

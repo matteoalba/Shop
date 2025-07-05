@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace ShopSaga.StockService.Repository.Migrations
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
+namespace ShopSaga.StockService.WebApi.Migrations
 {
     /// <inheritdoc />
-    public partial class FirstMigration : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -54,10 +56,45 @@ namespace ShopSaga.StockService.Repository.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.InsertData(
+                table: "Products",
+                columns: new[] { "Id", "CreatedAt", "Description", "Name", "Price", "QuantityInStock", "UpdatedAt" },
+                values: new object[,]
+                {
+                    { new Guid("550e8400-e29b-41d4-a716-446655440001"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Laptop da gaming", "Laptop Gaming MSI GF63", 1299.99m, 25, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440002"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Mouse wireless ergonomico", "Mouse Wireless Logitech MX Master 3", 89.99m, 150, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440003"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Tastiera meccanica con retroilluminazione RGB", "Tastiera Meccanica Corsair K95", 159.99m, 75, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440004"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Monitor 4K con risoluzione UltraSharp", "Monitor 4K Dell UltraSharp 27\"", 449.99m, 30, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440005"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Smartphone con display AMOLED e fotocamera da 108MP", "Smartphone Samsung Galaxy S24", 799.99m, 50, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440006"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Cuffie gaming wireless con audio surround", "Cuffie Gaming SteelSeries Arctis 7", 129.99m, 80, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440007"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Webcam HD con risoluzione 1080p", "Webcam HD Logitech C920", 69.99m, 120, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) },
+                    { new Guid("550e8400-e29b-41d4-a716-446655440008"), new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "SSD NVMe ad alte prestazioni con capacità di 1TB", "SSD NVMe Samsung 970 EVO 1TB", 199.99m, 40, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc) }
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Name",
+                table: "Products",
+                column: "Name");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Price",
+                table: "Products",
+                column: "Price");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockReservations_OrderId",
+                table: "StockReservations",
+                column: "OrderId");
+
             migrationBuilder.CreateIndex(
                 name: "IX_StockReservations_ProductId",
                 table: "StockReservations",
                 column: "ProductId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockReservations_Status",
+                table: "StockReservations",
+                column: "Status");
         }
 
         /// <inheritdoc />

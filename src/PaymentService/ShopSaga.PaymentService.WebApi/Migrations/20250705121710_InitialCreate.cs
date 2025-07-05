@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace ShopSaga.PaymentService.Repository.Migrations
+namespace ShopSaga.PaymentService.WebApi.Migrations
 {
     /// <inheritdoc />
-    public partial class FirstMigration : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -57,6 +57,26 @@ namespace ShopSaga.PaymentService.Repository.Migrations
                 name: "IX_PaymentRefund_PaymentId",
                 table: "PaymentRefund",
                 column: "PaymentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_CreatedAt",
+                table: "Payments",
+                column: "CreatedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_OrderId",
+                table: "Payments",
+                column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_Status",
+                table: "Payments",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_TransactionId",
+                table: "Payments",
+                column: "TransactionId");
         }
 
         /// <inheritdoc />
