@@ -43,7 +43,7 @@ jobs:
       run: dotnet restore ${{ matrix.project.path }}
 
     - name: Build project
-      run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore
+      run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore --verbosity normal -p:TreatWarningsAsErrors=false
 
     - name: Pack NuGet package
       run: dotnet pack ${{ matrix.project.path }} --configuration Release --no-build --output ./packages

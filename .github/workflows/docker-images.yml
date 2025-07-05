@@ -22,13 +22,13 @@ jobs:
         service:
           - name: order-service
             dockerfile: src/OrderService/ShopSaga.OrderService.WebApi/Dockerfile
-            context: ./src
+            context: .
           - name: payment-service
             dockerfile: src/PaymentService/ShopSaga.PaymentService.WebApi/Dockerfile
-            context: ./src
+            context: .
           - name: stock-service
             dockerfile: src/StockService/ShopSaga.StockService.WebApi/Dockerfile
-            context: ./src
+            context: .
 
     steps:
     - name: Checkout repository
