@@ -13,9 +13,6 @@ env:
 jobs:
   build-and-publish-nuget:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     
     strategy:
       matrix:
@@ -41,21 +38,28 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-      env:
-        NUGET_AUTH_TOKEN: ${{ secrets.TOKEN }}
 
     - name: Restore dependencies
       run: dotnet restore ${{ matrix.project.path }}
 
     - name: Build project
-      run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore --verbosity normal -p:TreatWarningsAsErrors=false
+      run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore -p:TreatWarningsAsErrors=false
 
     - name: Pack NuGet package
       run: dotnet pack ${{ matrix.project.path }} --configuration Release --no-build --output ./packages -p:TreatWarningsAsErrors=false
+
+    - name: Configure NuGet source
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      run: |
+        dotnet nuget add source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
+          --name github \
+          --username ${{ github.repository_owner }} \
+          --password ${{ secrets.TOKEN }} \
+          --store-password-in-clear-text
 
     - name: Publish to GitHub Packages
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
       run: |
         dotnet nuget push ./packages/*.nupkg \
+          --source github \
           --skip-duplicate
