@@ -1,0 +1,59 @@
+name: Build and Publish NuGet Packages
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-publish-nuget:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        project:
+          - path: 'src/OrderService/ShopSaga.OrderService.Shared'
+            package: 'ShopSaga.OrderService.Shared'
+          - path: 'src/OrderService/ShopSaga.OrderService.ClientHttp'
+            package: 'ShopSaga.OrderService.ClientHttp'
+          - path: 'src/PaymentService/ShopSaga.PaymentService.Shared'
+            package: 'ShopSaga.PaymentService.Shared'
+          - path: 'src/PaymentService/ShopSaga.PaymentService.ClientHttp'
+            package: 'ShopSaga.PaymentService.ClientHttp'
+          - path: 'src/StockService/ShopSaga.StockService.Shared'
+            package: 'ShopSaga.StockService.Shared'
+          - path: 'src/StockService/ShopSaga.StockService.ClientHttp'
+            package: 'ShopSaga.StockService.ClientHttp'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ matrix.project.path }}
+
+    - name: Build project
+      run: dotnet build ${{ matrix.project.path }} --configuration Release --no-restore
+
+    - name: Pack NuGet package
+      run: dotnet pack ${{ matrix.project.path }} --configuration Release --no-build --output ./packages
+
+    - name: Publish to GitHub Packages
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      run: |
+        dotnet nuget push ./packages/*.nupkg \
+          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
+          --api-key ${{ secrets.matteoalba_NUGET_PASSWORD }} \
+          --skip-duplicate
+      env:
+        NUGET_AUTH_TOKEN: ${{ secrets.matteoalba_NUGET_PASSWORD }}

@@ -1,0 +1,172 @@
+services:
+  # Database service
+  order-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Pass@word1
+    ports:
+      - "1433:1433"
+    volumes:
+      - order-data:/var/opt/mssql
+    networks:
+      - shop-network
+    restart: always
+
+  # Order microservice - Using GitHub Container Registry
+  order-service:
+    image: ghcr.io/matteoalba/shop-saga-order-service:latest
+    ports:
+      - "5001:8080"
+    environment:
+      - ConnectionStrings__OrderServiceDb=Server=order-db;Database=OrderDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_HTTP_PORTS=8080
+      - Kafka__BootstrapServers=kafka:29092
+      - Kafka__GroupId=order-service-group
+      - Kafka__OrderCreatedTopic=order-created
+      - Kafka__OrderCancelledTopic=order-cancelled
+    networks:
+      - shop-network
+    restart: always
+    depends_on:
+      - order-db
+      - kafka
+
+  payment-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Pass@word1
+    ports:
+      - "1434:1433"
+    volumes:
+      - payment-data:/var/opt/mssql
+    networks:
+      - shop-network
+    restart: always
+
+  # Payment microservice - Using GitHub Container Registry
+  payment-service:
+    image: ghcr.io/matteoalba/shop-saga-payment-service:latest
+    ports:
+      - "5002:8080"
+    environment:
+      - ConnectionStrings__PaymentServiceDb=Server=payment-db;Database=PaymentDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - OrderService__BaseUrl=http://order-service:8080/
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_HTTP_PORTS=8080
+    networks:
+      - shop-network
+    restart: always
+    depends_on:
+      - payment-db
+      - order-service
+
+  stock-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Pass@word1
+    ports:
+      - "1435:1433"
+    volumes:
+      - stock-data:/var/opt/mssql
+    networks:
+      - shop-network
+    restart: always
+
+  # Stock microservice - Using GitHub Container Registry
+  stock-service:
+    image: ghcr.io/matteoalba/shop-saga-stock-service:latest
+    ports:
+      - "5003:8080"
+    environment:
+      - ConnectionStrings__StockServiceDb=Server=stock-db;Database=StockDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_HTTP_PORTS=8080
+      - Kafka__BootstrapServers=kafka:29092
+      - Kafka__GroupId=stock-service-group
+      - Kafka__OrderCreatedTopic=order-created
+      - Kafka__OrderCancelledTopic=order-cancelled
+    networks:
+      - shop-network
+    restart: always
+    depends_on:
+      - stock-db
+      - kafka
+
+  # Adminer - Database management UI
+  adminer:
+    image: adminer:latest
+    restart: always
+    ports:
+      - "8082:8080"
+    networks:
+      - shop-network
+    depends_on:
+      - order-db
+      - payment-db
+      - stock-db
+
+  # Kafka services
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - shop-network
+    restart: always
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - shop-network
+    restart: always
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8081:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=shop-cluster
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+    networks:
+      - shop-network
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always
+
+volumes:
+  order-data:
+  payment-data:
+  stock-data:
+
+networks:
+  shop-network:
+    driver: bridge

@@ -4,6 +4,19 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    
+    <!-- NuGet Package Properties -->
+    <PackageId>ShopSaga.OrderService.Shared</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>matteoalba</Authors>
+    <Company>ShopSaga Solutions</Company>
+    <Description>Shared DTOs and models for Order Service in ShopSaga microservices architecture</Description>
+    <PackageTags>microservices;order;dto;saga</PackageTags>
+    <RepositoryUrl>https://github.com/matteoalba/Shop</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
