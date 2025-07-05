@@ -24,7 +24,6 @@ namespace ShopSaga.OrderService.Repository.Model
         
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigazione ai dettagli dell'ordine
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }

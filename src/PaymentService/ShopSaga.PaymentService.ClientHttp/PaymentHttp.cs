@@ -11,6 +11,10 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.PaymentService.ClientHttp
 {
+    /// <summary>
+    /// Client HTTP per comunicare con il Payment Service
+    /// Gestisce verifiche di pagamento, controlli di stato e validazioni
+    /// </summary>
     public class PaymentHttp : IPaymentHttp
     {
         private readonly HttpClient _httpClient;
@@ -29,6 +33,10 @@ namespace ShopSaga.PaymentService.ClientHttp
             };
         }
 
+        /// <summary>
+        /// Recupera il pagamento associato a un ordine specifico
+        /// Utilizzato per verificare lo stato di pagamento durante il flusso ordine
+        /// </summary>
         public async Task<PaymentDTO> GetPaymentByOrderIdAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -62,6 +70,10 @@ namespace ShopSaga.PaymentService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Verifica se un ordine ha un pagamento già processato (completato o rimborsato)
+        /// Importante per evitare doppi addebiti
+        /// </summary>
         public async Task<bool> IsPaymentProcessedAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -148,6 +160,10 @@ namespace ShopSaga.PaymentService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Verifica se un ordine ha un pagamento in stato pending
+        /// Utile per determinare se è necessario avviare il processo di pagamento
+        /// </summary>
         public async Task<bool> HasPendingPaymentAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -165,6 +181,10 @@ namespace ShopSaga.PaymentService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Verifica se un ordine è stato completamente pagato
+        /// Prerequisito per confermare definitivamente un ordine
+        /// </summary>
         public async Task<bool> IsOrderFullyPaidAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try

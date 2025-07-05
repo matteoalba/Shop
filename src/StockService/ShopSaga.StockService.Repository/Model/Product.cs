@@ -30,7 +30,6 @@ namespace ShopSaga.StockService.Repository.Model
         [Required]
         public DateTime UpdatedAt { get; set; }
 
-        // Navigation property per le prenotazioni stock
         public virtual ICollection<StockReservation> StockReservations { get; set; } = new List<StockReservation>();
     }
 }

@@ -16,11 +16,10 @@ namespace ShopSaga.OrderService.Repository
         {
             base.OnModelCreating(modelBuilder);
 
-            // Configuro le entità di Order, OrderItem
+            // Configurazione delle entità Order e OrderItem
             modelBuilder.Entity<Order>().HasKey(o => o.Id);
             modelBuilder.Entity<OrderItem>().HasKey(oi => oi.Id);
-            
-            // Configuro i tipi decimali per evitare troncamenti
+
             modelBuilder.Entity<Order>()
                 .Property(o => o.TotalAmount)
                 .HasColumnType("decimal(18,2)");
@@ -28,8 +27,7 @@ namespace ShopSaga.OrderService.Repository
             modelBuilder.Entity<OrderItem>()
                 .Property(oi => oi.UnitPrice)
                 .HasColumnType("decimal(18,2)");
-
-            // Configuro le relazioni tra Order e OrderItem
+                
             modelBuilder.Entity<OrderItem>()
                 .HasOne(o => o.Order)
                 .WithMany(oi => oi.OrderItems)

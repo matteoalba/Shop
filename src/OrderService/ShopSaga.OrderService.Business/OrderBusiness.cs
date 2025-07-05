@@ -18,6 +18,10 @@ using Microsoft.Extensions.Options;
 
 namespace ShopSaga.OrderService.Business
 {
+    /// <summary>
+    /// Orchestratore principale per la gestione degli ordini
+    /// Coordina le operazioni tra servizi di stock, pagamento e ordini con compensazione automatica
+    /// </summary>
     public class OrderBusiness : IOrderBusiness
     {
         private readonly IOrderRepository _orderRepository;
@@ -43,9 +47,12 @@ namespace ShopSaga.OrderService.Business
             _kafkaSettings = kafkaSettings.Value ?? throw new ArgumentNullException(nameof(kafkaSettings));
         }
 
+        /// <summary>
+        /// Implementa pattern SAGA per la creazione ordini: verifica stock → crea ordine → pubblica evento Kafk
+        /// In caso di errore durante la pubblicazione Kafka, attiva compensazione automatica
+        /// </summary>
         public async Task<OrderDTO> CreateOrderAsync(OrderDTO orderDto, CancellationToken cancellationToken = default)
         {
-            // Validazione input
             if (orderDto == null)
             {
                 _logger.LogError("Tentativo di creare un ordine con un DTO nullo");
@@ -62,10 +69,9 @@ namespace ShopSaga.OrderService.Business
             {
                 _logger.LogInformation("Inizio creazione ordine con {ItemCount} articoli", orderDto.OrderItems.Count);
 
-                // Genera un nuovo GUID per il CustomerId
                 var customerId = Guid.NewGuid();
                 
-                // Prima controlla disponibilità stock per tutti gli items
+                // Verifica preliminare disponibilità stock per tutti i prodotti
                 foreach (var item in orderDto.OrderItems)
                 {
                     var isAvailable = await _stockHttp.IsProductAvailableAsync(item.ProductId, item.Quantity, cancellationToken);
@@ -85,24 +91,19 @@ namespace ShopSaga.OrderService.Business
                     UnitPrice = itemDto.UnitPrice
                 }).ToList();
                 
-                // Totale = (Quantity * UnitPrice) per ogni item
                 var totalAmount = orderItems.Sum(item => item.Quantity * item.UnitPrice);
                 
-                // Mapping da OrderDTO a Order
                 var order = new Order
                 {
                     CustomerId = customerId,
-                    Status = OrderStatus.Created, // Stato iniziale
+                    Status = OrderStatus.Created,
                     TotalAmount = totalAmount, 
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     OrderItems = orderItems
                 };
 
-                // Creazione dell'ordine nel repository
                 var createdOrder = await _orderRepository.CreateOrderAsync(order, cancellationToken);
-                
-                // Salvataggio delle modifiche
                 await _orderRepository.SaveChanges(cancellationToken);
 
                 _logger.LogInformation("Ordine {OrderId} creato, ora pubblico l'evento su Kafka", createdOrder.Id);
@@ -123,7 +124,7 @@ namespace ShopSaga.OrderService.Business
                     Items = eventOrderItems
                 };
                 
-                // Pubblicazione asincrona dell'evento
+                // Pubblicazione critica: se fallisce, l'ordine viene annullato (compensazione)
                 var publishResult = await _kafkaProducer.ProduceAsync(
                     _kafkaSettings.OrderCreatedTopic,
                     $"order-{createdOrder.Id}",
@@ -133,7 +134,7 @@ namespace ShopSaga.OrderService.Business
                 {
                     _logger.LogError("Non è stato possibile pubblicare l'evento OrderCreated su Kafka per l'ordine {OrderId}. L'ordine verrà cancellato.", createdOrder.Id);
                     
-                    // Compensazione: cancella l'ordine creato
+                    // Compensazione automatica: elimina l'ordine creato
                     await _orderRepository.DeleteOrderAsync(createdOrder.Id, cancellationToken);
                     await _orderRepository.SaveChanges(cancellationToken);
                     
@@ -143,13 +144,12 @@ namespace ShopSaga.OrderService.Business
                 
                 _logger.LogInformation("Evento OrderCreated pubblicato con successo per l'ordine {OrderId}. La prenotazione stock sarà gestita tramite Kafka.", createdOrder.Id);
                 
-                // Aggiorna stato ordine a StockPending
+                // Transizione di stato: ordine creato -> in attesa prenotazione stock
                 createdOrder.Status = OrderStatus.StockPending;
                 createdOrder.UpdatedAt = DateTime.UtcNow;
                 await _orderRepository.SaveChanges(cancellationToken);
 
 
-                // Mapping dell'ordine creato per il DTO di ritorno
                 var resultDto = MapOrderToDto(createdOrder);
 
                 _logger.LogInformation("Ordine creato con successo con ID {OrderId}, CustomerId {CustomerId}, Status {Status}", 
@@ -163,6 +163,10 @@ namespace ShopSaga.OrderService.Business
             }
         }
         
+        /// <summary>
+        /// Elimina un ordine con gestione intelligente di pagamenti e stock
+        /// Blocca eliminazione per ordini con pagamenti completati
+        /// </summary>
         public async Task<bool> DeleteOrderAsync(int id, CancellationToken cancellationToken = default)
         {
             try 
@@ -177,7 +181,7 @@ namespace ShopSaga.OrderService.Business
                     return false;
                 }
                 
-                // Verifica se ci sono pagamenti associati all'ordine
+                // Verifica compatibilità con pagamenti esistenti
                 bool hasCompletedPayment = false;
                 try 
                 {
@@ -187,14 +191,13 @@ namespace ShopSaga.OrderService.Business
                         _logger.LogWarning("Impossibile cancellare ordine {OrderId}: pagamento esistente con stato {PaymentStatus}", 
                             id, payment.Status);
                         
-                        // Se c'è un pagamento completato, non possiamo cancellare l'ordine
+                        // Blocco assoluto per pagamenti completati
                         if (payment.Status == "Completed")
                         {
                             _logger.LogError("Ordine {OrderId} non può essere cancellato: pagamento completato", id);
                             return false;
                         }
                         
-                        // Se c'è un pagamento pending, lo segnaliamo ma permettiamo la cancellazione
                         if (payment.Status == "Pending")
                         {
                             _logger.LogWarning("Ordine {OrderId} ha un pagamento pending - procedendo con la cancellazione", id);
@@ -208,7 +211,7 @@ namespace ShopSaga.OrderService.Business
                     _logger.LogWarning(ex, "Errore durante il controllo del pagamento per ordine {OrderId} - procedendo con la cancellazione", id);
                 }
                 
-                // Se non c'è un pagamento completato, rilascia le stock reservations
+                // Libera le prenotazioni stock se il pagamento non è completato
                 if (!hasCompletedPayment)
                 {
                     try 
@@ -281,6 +284,9 @@ namespace ShopSaga.OrderService.Business
             return orders.Select(order => MapOrderToDto(order));
         }
 
+        /// <summary>
+        /// Aggiorna un ordine con gestione completa degli items: add/update
+        /// </summary>
         public async Task<OrderDTO> UpdateOrderAsync(OrderDTO orderDto, CancellationToken cancellationToken = default)
         {
             if (orderDto == null)
@@ -307,7 +313,7 @@ namespace ShopSaga.OrderService.Business
                     return null;
                 }
 
-                // Controlla se tutti gli OrderItem con ID > 0 esistono nell'ordine
+                // Validazione integrità: tutti gli items devono appartenere all'ordine
                 if (orderDto.OrderItems != null && orderDto.OrderItems.Any())
                 {
                     var isValid = await _orderRepository.ValidateOrderItemsAsync(orderDto.Id, orderDto.OrderItems, cancellationToken);
@@ -319,24 +325,20 @@ namespace ShopSaga.OrderService.Business
                     }
                 }
 
-                // Analizza le differenze per gestire stock reservations
                 var currentItems = existingOrder.OrderItems.ToList();
                 var newItems = orderDto.OrderItems?.ToList() ?? new List<OrderItemDTO>();
 
                 _logger.LogInformation("Analisi modifiche ordine {OrderId}: {CurrentCount} items attuali, {NewCount} items nuovi", 
                     orderDto.Id, currentItems.Count, newItems.Count);
 
-                // Items aggiunti (ID = 0 o non presenti nei current items)
                 var addedItems = newItems.Where(ni => ni.Id == 0 || !currentItems.Any(ci => ci.Id == ni.Id)).ToList();
-                
-                // Items aggiornati (stessa ID ma quantità/prezzo diversi)
                 var updatedItems = newItems.Where(ni => ni.Id > 0 && currentItems.Any(ci => ci.Id == ni.Id && 
                     (ci.Quantity != ni.Quantity || ci.UnitPrice != ni.UnitPrice))).ToList();
 
                 _logger.LogInformation("Modifiche ordine {OrderId}: {Added} aggiunti, {Updated} aggiornati", 
                     orderDto.Id, addedItems.Count, updatedItems.Count);
 
-                // Gestione SAGA per stock changes
+                // Orchestrazione SAGA per le modifiche di stock
                 bool stockOperationsSuccessful = await HandleStockChangesAsync(orderDto.Id, addedItems, updatedItems, currentItems, cancellationToken);
                 
                 if (!stockOperationsSuccessful)
@@ -345,17 +347,14 @@ namespace ShopSaga.OrderService.Business
                     return null;
                 }
 
-                // Se tutto ok, procedi con l'aggiornamento dell'ordine
                 var updatedOrder = await _orderRepository.UpdateOrderWithItemsAsync(
                     orderDto.Id, 
                     orderDto.Status ?? existingOrder.Status, 
                     orderDto.OrderItems, 
                     cancellationToken);
                 
-                // Salva le modifiche
                 await _orderRepository.SaveChanges(cancellationToken);
                 
-                // Mappa l'ordine aggiornato per il DTO di ritorno
                 var resultDto = MapOrderToDto(updatedOrder);
 
                 _logger.LogInformation("Ordine con ID {OrderId} aggiornato con successo", resultDto.Id);
@@ -365,7 +364,7 @@ namespace ShopSaga.OrderService.Business
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dell'ordine {OrderId}: {ErrorMessage}", orderDto.Id, ex.Message);
                 
-                // Rollback semplice: cancella tutte le stock reservations per l'ordine
+                // Rollback di emergenza: cancella tutte le stock reservations
                 try
                 {
                     _logger.LogInformation("Avvio rollback stock reservations per ordine {OrderId}", orderDto.Id);
@@ -389,6 +388,10 @@ namespace ShopSaga.OrderService.Business
             }
         }
 
+        /// <summary>
+        /// Gestisce modifiche stock con pattern SAGA e tracking operazioni per rollback
+        /// Ogni operazione viene tracciata per permettere compensazione in caso di errore
+        /// </summary>
         private async Task<bool> HandleStockChangesAsync(
             int orderId, 
             List<OrderItemDTO> addedItems, 
@@ -396,11 +399,11 @@ namespace ShopSaga.OrderService.Business
             List<OrderItem> currentItems, 
             CancellationToken cancellationToken)
         {
-            var operationsExecuted = new List<Guid>(); // Track delle operazioni per rollback
+            var operationsExecuted = new List<Guid>(); // Tracking per rollback
             
             try
             {
-                // 1. Items aggiunti: Controllo spazio e prenotazione
+                // Gestione items aggiunti: verifica disponibilità + prenotazione
                 foreach (var addedItem in addedItems)
                 {
                     _logger.LogInformation("Controllo disponibilità per nuovo item: Prodotto {ProductId}, Quantità {Quantity}", 
@@ -415,7 +418,6 @@ namespace ShopSaga.OrderService.Business
                         return false;
                     }
                     
-                    // Creare stock reservation per il nuovo item
                     var reserveDto = new ReserveStockDTO
                     {
                         ProductId = addedItem.ProductId,
@@ -431,12 +433,12 @@ namespace ShopSaga.OrderService.Business
                         return false;
                     }
                     
-                    operationsExecuted.Add(reservation.Id); // Track operazione
+                    operationsExecuted.Add(reservation.Id);
                     _logger.LogInformation("Prenotazione stock creata per nuovo item: Prodotto {ProductId}, Reservation ID {ReservationId}", 
                         addedItem.ProductId, reservation.Id);
                 }
 
-                // 3. Items aggiornati
+                // Gestione items con quantità modificata
                 foreach (var updatedItem in updatedItems)
                 {
                     var currentItem = currentItems.First(ci => ci.Id == updatedItem.Id);
@@ -456,8 +458,8 @@ namespace ShopSaga.OrderService.Business
                             await RollbackOperations(orderId, operationsExecuted, cancellationToken);
                             return false;
                         }
-                        
-                        // Creare una nuova prenotazione per il delta aggiuntivo
+
+                        // Creare un nuova prenotazione per il delta aggiuntivo
                         var reserveDto = new ReserveStockDTO
                         {
                             ProductId = updatedItem.ProductId,
@@ -474,7 +476,7 @@ namespace ShopSaga.OrderService.Business
                             return false;
                         }
                         
-                        operationsExecuted.Add(deltaReservation.Id); // Track operazione
+                        operationsExecuted.Add(deltaReservation.Id); 
                         _logger.LogInformation("Prenotazione stock aggiuntiva creata per Prodotto {ProductId}, Delta {Delta}, Reservation ID {ReservationId}", 
                             updatedItem.ProductId, quantityDelta, deltaReservation.Id);
                     }
@@ -511,7 +513,7 @@ namespace ShopSaga.OrderService.Business
                                 return false;
                             }
                             
-                            operationsExecuted.Add(newReservation.Id); // Track operazione
+                            operationsExecuted.Add(newReservation.Id);
                             _logger.LogInformation("Prenotazione stock ridotta per Prodotto {ProductId}, Nuova quantità {Quantity}, Reservation ID {ReservationId}", 
                                 updatedItem.ProductId, updatedItem.Quantity, newReservation.Id);
                         }
@@ -555,6 +557,7 @@ namespace ShopSaga.OrderService.Business
             _logger.LogInformation("Rollback completato per ordine {OrderId}", orderId);
         }
 
+        // Mapping
         private OrderDTO MapOrderToDto(Order order)
         {
             if (order == null) return null;
@@ -582,8 +585,7 @@ namespace ShopSaga.OrderService.Business
             try
             {
                 _logger.LogInformation("Aggiornamento stato ordine {OrderId} a {Status}", orderId, status);
-                
-                // Validazione input
+
                 if (orderId <= 0)
                 {
                     _logger.LogError("ID ordine non valido: {OrderId}", orderId);
@@ -595,8 +597,7 @@ namespace ShopSaga.OrderService.Business
                     _logger.LogError("Status non valido per ordine {OrderId}", orderId);
                     return null;
                 }
-                
-                // Verifica che l'ordine esista
+     
                 var existingOrder = await _orderRepository.GetOrderByIdAsync(orderId, cancellationToken);
                 if (existingOrder == null)
                 {
@@ -604,18 +605,15 @@ namespace ShopSaga.OrderService.Business
                     return null;
                 }
                 
-                // Log dello stato precedente per audit
                 _logger.LogInformation("Ordine {OrderId}: cambio stato da '{OldStatus}' a '{NewStatus}'", 
                     orderId, existingOrder.Status, status);
                 
-                // Aggiorna solo lo status usando il repository
+                // Aggiorna solo lo status
                 existingOrder.Status = status;
                 existingOrder.UpdatedAt = DateTime.UtcNow;
-                
-                // Salva le modifiche
+
                 await _orderRepository.SaveChanges(cancellationToken);
                 
-                // Restituisci il DTO aggiornato
                 var resultDto = MapOrderToDto(existingOrder);
                 
                 _logger.LogInformation("Status ordine {OrderId} aggiornato con successo a '{Status}'", orderId, status);
@@ -666,7 +664,6 @@ namespace ShopSaga.OrderService.Business
                 existingOrder.Status = OrderStatus.Cancelled;
                 existingOrder.UpdatedAt = DateTime.UtcNow;
 
-                // Salva le modifiche nel database
                 await _orderRepository.SaveChanges(cancellationToken);
 
                 _logger.LogInformation("Ordine {OrderId} aggiornato a status 'Cancelled'", orderId);

@@ -60,7 +60,6 @@ namespace ShopSaga.StockService.Business.Kafka
                 ConnectionsMaxIdleMs = 60000,
                 SessionTimeoutMs = 30000,
                 MaxPollIntervalMs = 300000,
-                // Aggiungiamo configurazioni per gestire meglio i topic mancanti
                 AllowAutoCreateTopics = true,
                 TopicMetadataRefreshIntervalMs = 30000
             };
@@ -99,12 +98,9 @@ namespace ShopSaga.StockService.Business.Kafka
                 {
                     // Sottoscrive entrambi i topic
                     var topics = new List<string> { _settings.OrderCreatedTopic, _settings.OrderCancelledTopic };
+                    // Test per verificare se i topic sono disponibili e funzionano
                     _consumer.Subscribe(topics);
-                    
-                    // Prova a fare un consume di test per verificare che i topic siano accessibili
                     var testResult = _consumer.Consume(TimeSpan.FromMilliseconds(500));
-                    // Se arriviamo qui, la connessione è OK (anche se non ci sono messaggi)
-                    
                     isKafkaConnected = true;
                     _logger.LogInformation("Kafka consumer avviato. In ascolto sui topic: {Topics}", string.Join(", ", topics));
                 }
@@ -237,14 +233,14 @@ namespace ShopSaga.StockService.Business.Kafka
                 
                 if (topic == _settings.OrderCreatedTopic)
                 {
-                    // Gestisce eventi di creazione ordine
+                    // Eventi di creazione ordine
                     var orderCreatedEvent = JsonSerializer.Deserialize<OrderCreatedEvent>(message);
                     await stockBusiness.ProcessOrderCreatedEventAsync(orderCreatedEvent, cancellationToken);
                     _logger.LogInformation("Evento OrderCreated elaborato con successo per ordine {OrderId}", orderCreatedEvent.OrderId);
                 }
                 else if (topic == _settings.OrderCancelledTopic)
                 {
-                    // Gestisce eventi di cancellazione ordine
+                    // Eventi di cancellazione ordine
                     var orderCancelledEvent = JsonSerializer.Deserialize<OrderCancelledEvent>(message);
                     await stockBusiness.ProcessOrderCancelledEventAsync(orderCancelledEvent, cancellationToken);
                     _logger.LogInformation("Evento OrderCancelled elaborato con successo per ordine {OrderId}", orderCancelledEvent.OrderId);

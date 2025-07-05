@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityF        }
+
+        public async Task<Payment> CreatePaymentAsync(Payment payment, CancellationToken cancellationToken = default)workCore;
 using ShopSaga.PaymentService.Repository.Abstraction;
 using ShopSaga.PaymentService.Repository.Model;
 using ShopSaga.PaymentService.Shared;
@@ -10,6 +12,10 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.PaymentService.Repository
 {
+    /// <summary>
+    /// Repository per la gestione dei pagamenti e delle logiche di business correlate
+    /// Include simulazione bancaria, rimborsi e validazioni temporali
+    /// </summary>
     public class PaymentRepository : IPaymentRepository
     {
         private readonly PaymentDbContext _context;
@@ -45,7 +51,6 @@ namespace ShopSaga.PaymentService.Repository
             return true;
         }
 
-        // Utility methods
         public async Task<Payment> GetPaymentByOrderIdAsync(int orderId, CancellationToken cancellationToken = default)
         {
             return await _context.Payments
@@ -71,10 +76,12 @@ namespace ShopSaga.PaymentService.Repository
             return await _context.Payments.ToListAsync(cancellationToken);
         }
 
-        // Business Logic Methods
+        /// <summary>
+        /// Elabora un pagamento utilizzando simulazione bancaria
+        /// Il pagamento deve essere in stato "Pending" per essere processato
+        /// </summary>
         public async Task<Payment> ProcessPaymentAsync(int orderId, CancellationToken cancellationToken = default)
         {
-            // Trova il pagamento esistente che deve essere in stato "Pending"
             var payment = await GetPaymentByOrderIdAsync(orderId, cancellationToken);
             if (payment == null)
             {
@@ -86,7 +93,7 @@ namespace ShopSaga.PaymentService.Repository
                 throw new InvalidOperationException($"Il pagamento per l'ordine {orderId} non è in stato 'Pending'. Stato attuale: {payment.Status}");
             }
 
-            // Simula l'approvazione bancaria (sempre true per ora)
+            // Simula l'elaborazione tramite banca
             bool bankApproval = SimulateBankPayment();
 
             if (bankApproval)
@@ -106,33 +113,37 @@ namespace ShopSaga.PaymentService.Repository
             return payment;
         }
 
+        /// <summary>
+        /// Simula l'elaborazione bancaria - attualmente sempre messa a true
+        /// </summary>
         private bool SimulateBankPayment()
         {
-            // Simula sempre successo (true)
-            // In futuro potremmo aggiungere logica per simulare fallimenti casuali
             return true;
         }
 
+        /// <summary>
+        /// Gestisce il rimborso con regole di business strict:
+        /// - Solo pagamenti completati, entro 30 giorni, non già rimborsati, importo esatto
+        /// </summary>
         public async Task<Payment> RefundPaymentAsync(int paymentId, decimal refundAmount, string reason, CancellationToken cancellationToken = default)
         {
             var payment = await GetPaymentByIdAsync(paymentId, cancellationToken);
             if (payment == null)
                 return null;
 
-            // Regola 1: Il pagamento deve essere completato
             if (payment.Status != "Completed")
             {
                 throw new InvalidOperationException("È possibile rimborsare solo i pagamenti completati");
             }
 
-            // Regola 2: Non devono essere passati più di 30 giorni
+            // Verifica limite temporale di 30 giorni
             var daysSincePurchase = (DateTime.UtcNow - payment.CreatedAt).Days;
             if (daysSincePurchase > 30)
             {
                 throw new InvalidOperationException("Non è possibile richiedere un rimborso dopo 30 giorni dall'acquisto");
             }
 
-            // Regola 3: Verificare se è già stato refundato
+            // Controllo doppio rimborso
             var existingRefund = await _context.PaymentRefunds
                 .AnyAsync(pr => pr.PaymentId == paymentId, cancellationToken);
             if (existingRefund)
@@ -140,13 +151,13 @@ namespace ShopSaga.PaymentService.Repository
                 throw new InvalidOperationException("Questo pagamento è già stato rimborsato");
             }
 
-            // Regola 4: L'importo deve essere esattamente uguale all'importo pagato
+            // Deve essere rimborso totale, non parziale
             if (refundAmount != payment.Amount)
             {
                 throw new InvalidOperationException($"L'importo del rimborso deve essere esattamente {payment.Amount:C}");
             }
 
-            // Creare il record di refund nella tabella PaymentRefund
+            // Registra il rimborso nell'audit trail
             var paymentRefund = new PaymentRefund
             {
                 PaymentId = paymentId,
@@ -158,7 +169,7 @@ namespace ShopSaga.PaymentService.Repository
 
             await _context.PaymentRefunds.AddAsync(paymentRefund, cancellationToken);
 
-            // Aggiornare lo stato del pagamento
+            // Aggiorna lo stato del pagamento principale
             payment.Status = "Refunded";
             payment.UpdatedAt = DateTime.UtcNow;
             _context.Payments.Update(payment);
@@ -196,7 +207,7 @@ namespace ShopSaga.PaymentService.Repository
             if (payment == null)
                 return false;
 
-            // Il refund è valido solo se il pagamento è completato e se non è già stato completamente rimborsato
+            // Verifica se il pagamento è idoneo per il rimborso
             if (payment.Status != "Completed")
                 return false;
 
@@ -210,7 +221,7 @@ namespace ShopSaga.PaymentService.Repository
             if (originalPayment == null)
                 return 0;
 
-            // Sum all negative amounts (refunds) for this order
+            // Calcola l'importo totale già rimborsato per questo ordine
             var refunds = await _context.Payments
                 .Where(p => p.OrderId == originalPayment.OrderId && p.Amount < 0)
                 .SumAsync(p => Math.Abs(p.Amount), cancellationToken);

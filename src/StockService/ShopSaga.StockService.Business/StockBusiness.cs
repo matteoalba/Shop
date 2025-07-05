@@ -14,6 +14,10 @@ using ShopSaga.OrderService.Shared.Events;
 
 namespace ShopSaga.StockService.Business
 {
+    /// <summary>
+    /// Gestisce tutta la logica di business per lo stock e le prenotazioni
+    /// Coordina le operazioni tra repository e servizi esterni via HTTP/Kafka
+    /// </summary>
     public class StockBusiness : IStockBusiness
     {
         private readonly IStockRepository _stockRepository;
@@ -145,6 +149,10 @@ namespace ShopSaga.StockService.Business
 
         #region Gestione Stock Reservations
 
+        /// <summary>
+        /// Prenota stock per un singolo prodotto, verificando prima la disponibilità
+        /// La prenotazione decrementa immediatamente lo stock disponibile
+        /// </summary>
         public async Task<StockReservationDTO> ReserveStockAsync(ReserveStockDTO reserveStockDto, CancellationToken cancellationToken = default)
         {
             try
@@ -176,6 +184,10 @@ namespace ShopSaga.StockService.Business
             }
         }
 
+        /// <summary>
+        /// Conferma tutte le prenotazioni di un ordine rendendole definitive
+        /// Aggiorna anche lo stato dell'ordine tramite OrderService
+        /// </summary>
         public async Task<bool> ConfirmAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -218,7 +230,7 @@ namespace ShopSaga.StockService.Business
                         orderId, confirmedCount);
                     try
                     {
-                        // Aggiorna lo stato dell'ordine dopo la conferma delle prenotazioni
+                        // Sincronizza lo stato con OrderService dopo la conferma
                         var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderId, "StockConfirmed", cancellationToken);
                         if (statusUpdateResult)
                         {
@@ -236,6 +248,7 @@ namespace ShopSaga.StockService.Business
                 }
                 else if (confirmedCount == 0)
                 {
+                    // Tutte le prenotazioni erano già confermate
                     _logger.LogInformation("Nessuna prenotazione stock da confermare per l'ordine {OrderId} (potrebbero essere già confermate)", orderId);
                     success = true; 
                 }
@@ -286,6 +299,10 @@ namespace ShopSaga.StockService.Business
             return reservations.Select(r => MapToStockReservationDTO(r, r.Product?.Name ?? "Prodotto sconosciuto"));
         }
 
+        /// <summary>
+        /// Prenota stock per più prodotti in un'operazione atomica
+        /// Se una prenotazione fallisce, tutte le precedenti vengono annullate
+        /// </summary>
         public async Task<IEnumerable<StockReservationDTO>> ReserveMultipleStockAsync(IEnumerable<ReserveStockDTO> reserveStockDtos, CancellationToken cancellationToken = default)
         {
             var results = new List<StockReservationDTO>();
@@ -305,7 +322,7 @@ namespace ShopSaga.StockService.Business
             }
             catch (Exception ex)
             {
-                // Se qualcosa va storto, annulla tutte le prenotazioni già fatte
+                // Rollback automatico: annulla tutte le prenotazioni già create
                 _logger.LogError(ex, "Errore durante la prenotazione multipla. Annullamento delle prenotazioni già effettuate...");
                 foreach (var reservationId in reservedItems)
                 {
@@ -322,6 +339,10 @@ namespace ShopSaga.StockService.Business
             }
         }
 
+        /// <summary>
+        /// Cancella tutte le prenotazioni di un ordine e ripristina lo stock
+        /// Aggiorna anche lo stato dell'ordine tramite OrderService
+        /// </summary>
         public async Task<bool> CancelAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -343,7 +364,7 @@ namespace ShopSaga.StockService.Business
                     _logger.LogInformation("Tutte le prenotazioni stock per l'ordine {OrderId} sono state cancellate", orderId);
                     try
                     {
-                        // Aggiorna solo lo stato dell'ordine dopo la cancellazione delle prenotazioni
+                        // Sincronizza lo stato con OrderService dopo la cancellazione
                         var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderId, "StockCancelled", cancellationToken);
                         if (statusUpdateResult)
                         {
@@ -369,6 +390,10 @@ namespace ShopSaga.StockService.Business
             }
         }
 
+    /// <summary>
+    /// Gestisce l'evento Kafka di creazione ordine prenotando automaticamente lo stock
+    /// Include logica di retry per l'aggiornamento dello stato ordine
+    /// </summary>
     public async Task ProcessOrderCreatedEventAsync(OrderCreatedEvent orderCreatedEvent, CancellationToken cancellationToken = default)
     {
         try
@@ -379,7 +404,8 @@ namespace ShopSaga.StockService.Business
                 _logger.LogWarning("Evento OrderCreated ricevuto senza articoli per l'ordine {OrderId}", orderCreatedEvent.OrderId);
                 return;
             }
-            // Prepara le richieste di prenotazione stock per ogni item dell'ordine
+            
+            // Converte gli items dell'ordine in richieste di prenotazione stock
             var reserveStockDtos = orderCreatedEvent.Items.Select(item => new ReserveStockDTO
             {
                 OrderId = orderCreatedEvent.OrderId,
@@ -396,7 +422,7 @@ namespace ShopSaga.StockService.Business
                 orderCreatedEvent.OrderId, reservationResults.Count());
             try 
             {
-                // Dopo la prenotazione, aggiorna lo stato ordine tramite HTTP con retry logic
+                // Aggiorna lo stato ordine con meccanismo di retry per resilienza
                 _logger.LogInformation("Tentativo di aggiornare lo stato dell'ordine {OrderId} a 'StockReserved'", orderCreatedEvent.OrderId);
                 
                 var success = false;
@@ -443,6 +469,7 @@ namespace ShopSaga.StockService.Business
                 
                 if (!success)
                 {
+                    // Fallimento critico: stock prenotato ma stato ordine non aggiornato
                     _logger.LogError("Impossibile aggiornare lo stato dell'ordine {OrderId} a 'StockReserved' dopo {MaxRetries} tentativi. Stock prenotato ma ordine non aggiornato!", 
                         orderCreatedEvent.OrderId, maxRetries);
                 }
@@ -456,16 +483,19 @@ namespace ShopSaga.StockService.Business
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore durante l'elaborazione dell'evento OrderCreated per l'ordine {OrderId}", orderCreatedEvent.OrderId);
-        }
+        }        
     }
 
+        /// <summary>
+        /// Gestisce l'evento Kafka di cancellazione ordine liberando tutto lo stock prenotato
+        /// </summary>
         public async Task ProcessOrderCancelledEventAsync(OrderCancelledEvent orderCancelledEvent, CancellationToken cancellationToken = default)
         {
             try
             {
                 _logger.LogInformation("Elaborazione evento OrderCancelled per ordine {OrderId}", orderCancelledEvent.OrderId);
 
-                // Cancella tutte le prenotazioni stock per questo ordine
+                // Libera tutto lo stock prenotato per questo ordine
                 var success = await CancelAllStockReservationsForOrderAsync(orderCancelledEvent.OrderId, cancellationToken);
                 
                 if (success)
@@ -474,7 +504,7 @@ namespace ShopSaga.StockService.Business
                     
                     try
                     {
-                        // Conferma la cancellazione aggiornando lo stato dell'ordine
+                        // Conferma la cancellazione sincronizzando lo stato con OrderService
                         var statusUpdateResult = await _orderHttp.UpdateOrderStatusAsync(orderCancelledEvent.OrderId, "StockCancelled", cancellationToken);
                         if (statusUpdateResult)
                         {

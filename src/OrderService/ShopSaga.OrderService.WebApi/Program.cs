@@ -15,20 +15,23 @@ builder.Services.AddDbContext<OrderDbContext>(options => options.UseSqlServer("n
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderBusiness, OrderBusiness>();
 
-// Configure Kafka Settings
+// Kafka 
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("Kafka"));
 builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
 
-// HTTP Clients
+// HTTP Client payment
 builder.Services.AddHttpClient<IPaymentHttp, PaymentHttp>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("Services:PaymentService") ?? "https://localhost:5002/");
+    var paymentServiceUrl = "https://localhost:5002/";
+    client.BaseAddress = new Uri(paymentServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+// HTTP Client stock
 builder.Services.AddHttpClient<IStockHttp, StockHttp>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("Services:StockService") ?? "https://localhost:5003/");
+    var stockServiceUrl = "https://localhost:5003/";
+    client.BaseAddress = new Uri(stockServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
@@ -39,14 +42,12 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
     context.Database.EnsureCreated();
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment()) 
 {
     app.UseSwagger();

@@ -126,14 +126,12 @@ namespace ShopSaga.OrderService.WebApi.Controllers
             {
                 _logger.LogInformation("Ricevuta richiesta per creare un nuovo ordine");
                 
-                // Controlliamo che gli OrderItems siano validi
                 if (createOrderDto?.OrderItems == null || !createOrderDto.OrderItems.Any())
                 {
                     _logger.LogWarning("Tentativo di creare un ordine senza elementi");
                     return BadRequest("L'ordine deve contenere almeno un elemento");
                 }
-                
-                // Convertiamo il CreateOrderDTO in OrderDTO
+
                 var orderDto = new OrderDTO 
                 {
                     OrderItems = createOrderDto.OrderItems.Select(item => new OrderItemDTO 
@@ -152,7 +150,6 @@ namespace ShopSaga.OrderService.WebApi.Controllers
                     return BadRequest("Creazione dell'ordine fallita");
                 }
 
-                // Ritorniamo 201 Created con il percorso alla risorsa creata
                 return CreatedAtAction(nameof(GetOrder), new { orderId = result.Id }, result);
             }
             catch (Exception ex)
@@ -174,11 +171,10 @@ namespace ShopSaga.OrderService.WebApi.Controllers
                     _logger.LogWarning("Body della richiesta vuoto per l'aggiornamento dell'ordine {OrderId}", orderId);
                     return BadRequest("Il corpo della richiesta non può essere vuoto");
                 }
-                
-                // Convertiamo UpdateOrderDTO in OrderDTO
+
                 var orderDto = new OrderDTO 
                 {
-                    Id = orderId, // Usiamo l'ID dall'URL
+                    Id = orderId, 
                     Status = updateOrderDto.Status,
                     OrderItems = updateOrderDto.OrderItems?.Select(item => new OrderItemDTO
                     {

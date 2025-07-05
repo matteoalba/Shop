@@ -148,6 +148,9 @@ di rimuovere items per errore.
 TODO:
 
  - Fare tutti i test possibili e controllare che tutto funzioni.
+ - Aggiungere in modo automatico il file sql in modo da creare database e dati alla prima volta.
+ - Eliminare e mettere a posto tutti i commenti
+ - Diminuire i log?
  - Creare immagine di ogni microservizio da mettere poi su github.
 
 

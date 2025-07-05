@@ -15,8 +15,6 @@ namespace ShopSaga.StockService.Repository
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            // Configurazione Product
             modelBuilder.Entity<Product>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -44,7 +42,7 @@ namespace ShopSaga.StockService.Repository
                 // Check constraint
                 entity.HasCheckConstraint("CK_StockReservation_Quantity", "[Quantity] > 0");
 
-                // Foreign key relationship
+                // Foreign key Product - StockReservation
                 entity.HasOne(e => e.Product)
                       .WithMany(p => p.StockReservations)
                       .HasForeignKey(e => e.ProductId)

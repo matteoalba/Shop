@@ -23,7 +23,6 @@ namespace ShopSaga.StockService.Repository
             return await _context.SaveChangesAsync(cancellationToken);
         }
 
-        // Metodi per Product
         public async Task<Product?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Products.FindAsync(new object[] { id }, cancellationToken);
@@ -69,7 +68,6 @@ namespace ShopSaga.StockService.Repository
             return true;
         }
 
-        // Metodi per StockReservation
         public async Task<StockReservation?> GetStockReservationByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.StockReservations
@@ -98,27 +96,24 @@ namespace ShopSaga.StockService.Repository
             if (product == null)
                 throw new ArgumentException($"Prodotto con ID {productId} non trovato");
 
-            // Verifica se esiste già una prenotazione per questo ordine e prodotto
+            // Controlla se esiste già una prenotazione attiva per questo ordine
             var existingReservation = await GetStockReservationByOrderAndProductAsync(orderId, productId, cancellationToken);
             
             if (existingReservation != null)
             {
-                // Verifica se c'è abbastanza stock per la quantità aggiuntiva
                 if (product.QuantityInStock < quantity)
                     throw new InvalidOperationException($"Stock insufficiente per il prodotto {product.Name}. Disponibile: {product.QuantityInStock}, Richiesto: {quantity}");
 
-                // Aggiorna la quantità della prenotazione esistente
+                // Aggiorna la prenotazione esistente con la nuova quantità
                 existingReservation.Quantity += quantity;
                 existingReservation.UpdatedAt = DateTime.UtcNow;
 
-                // Riduci lo stock del prodotto
                 product.QuantityInStock -= quantity;
                 product.UpdatedAt = DateTime.UtcNow;
                 return existingReservation;
             }
             else
             {
-                // Verifica se c'è abbastanza stock per la nuova prenotazione
                 if (product.QuantityInStock < quantity)
                     throw new InvalidOperationException($"Stock insufficiente per il prodotto {product.Name}. Disponibile: {product.QuantityInStock}, Richiesto: {quantity}");
 
@@ -134,7 +129,7 @@ namespace ShopSaga.StockService.Repository
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                // Riduci lo stock del prodotto
+                // Decrementa lo stock disponibile
                 product.QuantityInStock -= quantity;
                 product.UpdatedAt = DateTime.UtcNow;
 
@@ -161,7 +156,7 @@ namespace ShopSaga.StockService.Repository
             if (reservation == null)
                 return false;
 
-            // Ripristina lo stock se la prenotazione era attiva
+            // Ripristina lo stock solo se la prenotazione era attiva
             if (reservation.Status == "Reserved")
             {
                 var product = await GetProductByIdAsync(reservation.ProductId, cancellationToken);

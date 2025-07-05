@@ -12,6 +12,9 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.StockService.ClientHttp
 {
+    /// <summary>
+    /// Client HTTP per comunicare con il Stock Service
+    /// </summary>
     public class StockHttp : IStockHttp
     {
         private readonly HttpClient _httpClient;
@@ -30,6 +33,10 @@ namespace ShopSaga.StockService.ClientHttp
             };
         }
 
+        /// <summary>
+        /// Conferma definitivamente tutte le prenotazioni di stock per un ordine
+        /// Utilizzato quando il pagamento è andato a buon fine
+        /// </summary>
         public async Task<bool> ConfirmAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -57,6 +64,10 @@ namespace ShopSaga.StockService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Cancella tutte le prenotazioni di stock per un ordine e ripristina la disponibilità
+        /// Utilizzato in caso di fallimento del pagamento o cancellazione ordine
+        /// </summary>
         public async Task<bool> CancelAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -100,6 +111,7 @@ namespace ShopSaga.StockService.ClientHttp
                 }
                 else
                 {
+                    // In caso di errore HTTP restituiamo una lista vuota per evitare null reference
                     _logger.LogWarning("Errore HTTP durante recupero prenotazioni stock ordine {OrderId}: {StatusCode}", orderId, response.StatusCode);
                     return new List<StockReservationDTO>();
                 }
@@ -111,6 +123,10 @@ namespace ShopSaga.StockService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Verifica se un prodotto ha abbastanza stock disponibile per la quantità richiesta
+        /// Non effettua prenotazioni, solo controllo di disponibilità
+        /// </summary>
         public async Task<bool> IsProductAvailableAsync(Guid productId, int quantity, CancellationToken cancellationToken = default)
         {
             try
@@ -154,6 +170,7 @@ namespace ShopSaga.StockService.ClientHttp
                 }
                 else
                 {
+                    // Prodotto non trovato o errore nel servizio
                     _logger.LogWarning("Errore HTTP durante recupero prodotto {ProductId}: {StatusCode}", productId, response.StatusCode);
                     return null;
                 }
@@ -165,6 +182,10 @@ namespace ShopSaga.StockService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Prenota stock per un singolo prodotto, decrementando la disponibilità
+        /// La prenotazione rimane attiva fino a conferma o cancellazione
+        /// </summary>
         public async Task<StockReservationDTO> ReserveStockAsync(ReserveStockDTO reserveStockDto, CancellationToken cancellationToken = default)
         {
             try
@@ -183,6 +204,7 @@ namespace ShopSaga.StockService.ClientHttp
                 }
                 else
                 {
+                    // Prenotazione fallita - potrebbe essere stock insufficiente
                     _logger.LogWarning("Errore HTTP durante prenotazione stock: {StatusCode}", response.StatusCode);
                     return null;
                 }
@@ -194,6 +216,10 @@ namespace ShopSaga.StockService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Prenota stock per più prodotti in una singola operazione atomica
+        /// Utile per ordini con più articoli - tutto riesce o tutto fallisce
+        /// </summary>
         public async Task<IEnumerable<StockReservationDTO>> ReserveMultipleStockAsync(IEnumerable<ReserveStockDTO> reserveStockDtos, CancellationToken cancellationToken = default)
         {
             try
@@ -211,6 +237,7 @@ namespace ShopSaga.StockService.ClientHttp
                 }
                 else
                 {
+                    // Operazione batch fallita - nessuna prenotazione creata
                     _logger.LogWarning("Errore HTTP durante prenotazioni multiple: {StatusCode}", response.StatusCode);
                     return new List<StockReservationDTO>();
                 }
@@ -222,6 +249,9 @@ namespace ShopSaga.StockService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Cancella una prenotazione di stock specifica e ripristina la disponibilità
+        /// </summary>
         public async Task<bool> CancelStockReservationAsync(Guid reservationId, CancellationToken cancellationToken = default)
         {
             try

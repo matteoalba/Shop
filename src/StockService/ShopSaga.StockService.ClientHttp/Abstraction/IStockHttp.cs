@@ -8,7 +8,7 @@ namespace ShopSaga.StockService.ClientHttp.Abstraction
 {
     public interface IStockHttp
     {
-        
+        // Metodi per gestire i product
         Task<bool> ConfirmAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
         Task<bool> CancelAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
         Task<IEnumerable<StockReservationDTO>> GetStockReservationsByOrderAsync(int orderId, CancellationToken cancellationToken = default);

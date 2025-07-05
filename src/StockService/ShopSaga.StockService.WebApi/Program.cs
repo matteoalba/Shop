@@ -13,15 +13,14 @@ builder.Services.AddDbContext<StockDbContext>(options => options.UseSqlServer("n
 builder.Services.AddScoped<IStockRepository, StockRepository>();
 builder.Services.AddScoped<IStockBusiness, StockBusiness>();
 
-// Configure Kafka Settings
+// Kafka
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("Kafka"));
 builder.Services.AddHostedService<KafkaConsumerService>();
 
-// Configurazione HTTP Client per OrderService
+// HTTP per order service
 builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 {
-    // In sviluppo usa localhost, in produzione/Docker usa il nome del servizio
-    var orderServiceUrl = builder.Configuration.GetValue<string>("OrderService:BaseUrl") ?? "http://localhost:5001/";
+    var orderServiceUrl = "http://localhost:5001/";
     client.BaseAddress = new Uri(orderServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });

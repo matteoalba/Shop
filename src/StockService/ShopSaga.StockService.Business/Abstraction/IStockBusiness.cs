@@ -18,21 +18,21 @@ namespace ShopSaga.StockService.Business.Abstraction
         Task<bool> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
         Task<bool> IsProductAvailableAsync(Guid productId, int quantity, CancellationToken cancellationToken = default);
 
-        // Gestione Stock Reservations (per SAGA)
+        // Gestione Stock Reservations
         Task<StockReservationDTO> ReserveStockAsync(ReserveStockDTO reserveStockDto, CancellationToken cancellationToken = default);
         Task<bool> ConfirmAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
         Task<bool> CancelStockReservationAsync(Guid reservationId, CancellationToken cancellationToken = default);
         Task<StockReservationDTO> GetStockReservationAsync(Guid reservationId, CancellationToken cancellationToken = default);
         Task<IEnumerable<StockReservationDTO>> GetStockReservationsByOrderAsync(int orderId, CancellationToken cancellationToken = default);
 
-        // Operazioni batch per ordini complessi
+        // Operazioni batch
         Task<IEnumerable<StockReservationDTO>> ReserveMultipleStockAsync(IEnumerable<ReserveStockDTO> reserveStockDtos, CancellationToken cancellationToken = default);
         Task<bool> CancelAllStockReservationsForOrderAsync(int orderId, CancellationToken cancellationToken = default);
 
         // Query utili
         Task<int> GetAvailableStockAsync(Guid productId, CancellationToken cancellationToken = default);
         
-        // Kafka Events
+        // Kafka
         Task ProcessOrderCreatedEventAsync(OrderCreatedEvent orderCreatedEvent, CancellationToken cancellationToken = default);
         Task ProcessOrderCancelledEventAsync(OrderCancelledEvent orderCancelledEvent, CancellationToken cancellationToken = default);
     }

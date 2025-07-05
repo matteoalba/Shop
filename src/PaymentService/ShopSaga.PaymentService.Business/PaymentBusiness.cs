@@ -13,6 +13,10 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.PaymentService.Business
 {
+    /// <summary>
+    /// Gestisce la logica di business dei pagamenti implementando il pattern SAGA
+    /// Coordina pagamenti, stock e ordini mantenendo la consistenza distribuita
+    /// </summary>
     public class PaymentBusiness : IPaymentBusiness
     {
         private readonly IPaymentRepository _paymentRepository;
@@ -36,13 +40,16 @@ namespace ShopSaga.PaymentService.Business
             return  MapToDTO(payment);
         }
 
+        /// <summary>
+        /// Crea un nuovo pagamento con validazioni complete di business
+        /// Verifica ordine esistente, importo corretto e stato valido
+        /// </summary>
         public async Task<PaymentDTO> CreatePaymentAsync(CreatePaymentDTO createPaymentDto, CancellationToken cancellationToken = default)
         {
             try
             {
                 ValidateCreatePaymentDto(createPaymentDto);
 
-                // 1. Verifica che l'ordine esista
                 _logger.LogInformation("Verifica esistenza ordine {OrderId} prima di creare il pagamento", createPaymentDto.OrderId);
                 var order = await _orderHttp.GetOrderAsync(createPaymentDto.OrderId, cancellationToken);
                 
@@ -52,7 +59,7 @@ namespace ShopSaga.PaymentService.Business
                     throw new ArgumentException($"Ordine con ID {createPaymentDto.OrderId} non trovato");
                 }
 
-                // 2. Verifica che l'importo corrisponda
+                // Validazione importo - deve corrispondere esattamente al totale ordine
                 if (order.TotalAmount != createPaymentDto.Amount)
                 {
                     _logger.LogWarning("Importo pagamento non corrisponde. Ordine: {OrderAmount}, Richiesto: {PaymentAmount}", 
@@ -60,15 +67,15 @@ namespace ShopSaga.PaymentService.Business
                     throw new ArgumentException($"L'importo del pagamento ({createPaymentDto.Amount}) non corrisponde al totale dell'ordine ({order.TotalAmount})");
                 }
 
-                // 3. Verifica che l'ordine sia in stato valido per il pagamento
-                var validStatuses = new[] { "StockReserved" }; // Solo ordini con stock confermato
+                // Solo ordini con stock già riservato possono procedere al pagamento
+                var validStatuses = new[] { "StockReserved" };
                 if (!validStatuses.Contains(order.Status))
                 {
                     _logger.LogWarning("Ordine {OrderId} in stato non valido per pagamento: {Status}", createPaymentDto.OrderId, order.Status);
                     throw new InvalidOperationException($"Ordine {createPaymentDto.OrderId} non è in stato valido per il pagamento. Stato attuale: {order.Status}. Stato richiesto: StockReserved");
                 }
 
-                // 4. Verifica che non esista già un pagamento per questo ordine
+                // Prevenzione doppi pagamenti
                 var existingPayment = await _paymentRepository.GetPaymentByOrderIdAsync(createPaymentDto.OrderId, cancellationToken);
                 if (existingPayment != null)
                 {
@@ -129,12 +136,15 @@ namespace ShopSaga.PaymentService.Business
             return payments.Select(MapToDTO);
         }
 
+        /// <summary>
+        /// Elabora il pagamento
+        /// Punto pivot: completamento pagamento - dopo questo punto si procede sempre avanti
+        /// </summary>
         public async Task<PaymentDTO> ProcessPaymentAsync(int orderId, CancellationToken cancellationToken = default)
         {
             if (orderId <= 0)
                 throw new ArgumentException("OrderId è richiesto e deve essere maggiore di 0", nameof(orderId));
 
-            // Validazione preliminare: verifica che il pagamento è stato creato
             var existingPayment = await _paymentRepository.GetPaymentByOrderIdAsync(orderId, cancellationToken);
             if (existingPayment == null)
             {
@@ -146,7 +156,7 @@ namespace ShopSaga.PaymentService.Business
             {
                 _logger.LogInformation("SAGA: Avvio processo pagamento per ordine {OrderId}", orderId);
                 
-                // STEP 1: Processa il pagamento internamente
+                // PUNTO PRE-PIVOT: Elaborazione pagamento bancario
                 var payment = await _paymentRepository.ProcessPaymentAsync(orderId, cancellationToken);
                 await _paymentRepository.SaveChanges(cancellationToken);
                 
@@ -154,10 +164,8 @@ namespace ShopSaga.PaymentService.Business
                 {
                     _logger.LogWarning("SAGA: Pagamento fallito per ordine {OrderId}", orderId);
                     
-                    // Se il pagamento fallisce, cancella le prenotazioni stock
+                    // Compensazione: rilascia prenotazioni stock
                     await _stockHttp.CancelAllStockReservationsForOrderAsync(orderId, cancellationToken);
-                    
-                    // Aggiorna stato ordine a PaymentFailed
                     await _orderHttp.UpdateOrderStatusAsync(orderId, "PaymentFailed", cancellationToken);
                     
                     return MapToDTO(payment);
@@ -165,22 +173,18 @@ namespace ShopSaga.PaymentService.Business
                 
                 _logger.LogInformation("SAGA: Pagamento completato per ordine {OrderId}", orderId);
                 
-                // STEP 2: Conferma definitivamente tutte le prenotazioni stock (POST-PIVOT)
+                // PUNTO POST-PIVOT: Da qui non si torna indietro, solo avanti
                 var stockConfirmed = await _stockHttp.ConfirmAllStockReservationsForOrderAsync(orderId, cancellationToken);
                 
                 if (stockConfirmed)
                 {
                     _logger.LogInformation("SAGA: Stock confermato definitivamente per ordine {OrderId}", orderId);
-                    
-                    // STEP 3: Aggiorna stato ordine a PaymentCompleted
                     await _orderHttp.UpdateOrderStatusAsync(orderId, "PaymentCompleted", cancellationToken);
                 }
                 else
                 {
+                    // Scenario critico: pagamento addebitato ma stock non disponibile
                     _logger.LogError("SAGA: Errore critico - Pagamento completato ma stock non confermato per ordine {OrderId}", orderId);
-                    
-                    // Scenario critico: Pagamento OK ma stock fallito
-                    // Non possiamo fare rollback del pagamento, serve intervento manuale
                     await _orderHttp.UpdateOrderStatusAsync(orderId, "ManualIntervention", cancellationToken);
                 }
                 
@@ -190,7 +194,7 @@ namespace ShopSaga.PaymentService.Business
             {
                 _logger.LogError(ex, "SAGA: Errore durante processo pagamento ordine {OrderId}", orderId);
                 
-                // In caso di errore, assicurati che le prenotazioni stock siano cancellate
+                // Cleanup di emergenza: libera risorse bloccate
                 try
                 {
                     await _stockHttp.CancelAllStockReservationsForOrderAsync(orderId, cancellationToken);
@@ -205,6 +209,10 @@ namespace ShopSaga.PaymentService.Business
             }
         }
 
+        /// <summary>
+        /// Gestisce il rimborso implementando compensazione distribuita
+        /// Rimborsa il pagamento e libera tutto lo stock confermato
+        /// </summary>
         public async Task<PaymentDTO> RefundPaymentAsync(RefundPaymentDTO refundPaymentDto, CancellationToken cancellationToken = default)
         {
             ValidateRefundPaymentDto(refundPaymentDto);
@@ -213,7 +221,7 @@ namespace ShopSaga.PaymentService.Business
             {
                 _logger.LogInformation("SAGA: Avvio rimborso per payment {PaymentId}", refundPaymentDto.PaymentId);
                 
-                // STEP 1: Effettua il rimborso internamente
+                // Elabora il rimborso nel sistema bancario
                 var refundPayment = await _paymentRepository.RefundPaymentAsync(
                     refundPaymentDto.PaymentId,
                     refundPaymentDto.Amount,
@@ -231,7 +239,7 @@ namespace ShopSaga.PaymentService.Business
                 _logger.LogInformation("SAGA: Rimborso completato per payment {PaymentId}, ordine {OrderId}", 
                     refundPayment.Id, refundPayment.OrderId);
                 
-                // STEP 2: Rilascia tutto lo stock confermato (COMPENSAZIONE)
+                // Compensazione: rilascia lo stock precedentemente confermato
                 var stockReleased = await _stockHttp.CancelAllStockReservationsForOrderAsync(refundPayment.OrderId, cancellationToken);
                 
                 if (stockReleased)
@@ -243,7 +251,6 @@ namespace ShopSaga.PaymentService.Business
                     _logger.LogWarning("SAGA: Rimborso OK ma errore rilascio stock per ordine {OrderId}", refundPayment.OrderId);
                 }
                 
-                // STEP 3: Aggiorna stato ordine a Refunded
                 await _orderHttp.UpdateOrderStatusAsync(refundPayment.OrderId, "Refunded", cancellationToken);
                 
                 return MapToDTO(refundPayment);
@@ -255,6 +262,10 @@ namespace ShopSaga.PaymentService.Business
             }
         }
 
+        /// <summary>
+        /// Cancella un pagamento implementando compensazione completa
+        /// Annulla il pagamento e libera le prenotazioni stock associate
+        /// </summary>
         public async Task<PaymentDTO> CancelPaymentAsync(int paymentId, CancellationToken cancellationToken = default)
         {
             if (paymentId <= 0)
@@ -264,7 +275,6 @@ namespace ShopSaga.PaymentService.Business
             {
                 _logger.LogInformation("SAGA: Avvio cancellazione payment {PaymentId}", paymentId);
                 
-                // STEP 1: Cancella il pagamento internamente
                 var cancelledPayment = await _paymentRepository.CancelPaymentAsync(paymentId, cancellationToken);
 
                 if (cancelledPayment == null)
@@ -278,7 +288,7 @@ namespace ShopSaga.PaymentService.Business
                 _logger.LogInformation("SAGA: Pagamento cancellato {PaymentId}, ordine {OrderId}", 
                     cancelledPayment.Id, cancelledPayment.OrderId);
                 
-                // STEP 2: Rilascia tutte le prenotazioni stock (COMPENSAZIONE)
+                // Compensazione: libera tutte le prenotazioni stock
                 var stockReleased = await _stockHttp.CancelAllStockReservationsForOrderAsync(cancelledPayment.OrderId, cancellationToken);
                 
                 if (stockReleased)
@@ -290,7 +300,6 @@ namespace ShopSaga.PaymentService.Business
                     _logger.LogWarning("SAGA: Cancellazione pagamento OK ma errore rilascio stock per ordine {OrderId}", cancelledPayment.OrderId);
                 }
                 
-                // STEP 3: Aggiorna stato ordine a Cancelled
                 await _orderHttp.UpdateOrderStatusAsync(cancelledPayment.OrderId, "PaymentCancelled", cancellationToken);
                 
                 return MapToDTO(cancelledPayment);
@@ -307,7 +316,7 @@ namespace ShopSaga.PaymentService.Business
             return await _paymentRepository.IsPaymentProcessedAsync(orderId, cancellationToken);
         }
 
-        // Private helper methods
+        // Metodi di supporto e mapping
         private PaymentDTO MapToDTO(Payment payment)
         {
             return new PaymentDTO

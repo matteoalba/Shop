@@ -10,6 +10,9 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.OrderService.ClientHttp
 {
+    /// <summary>
+    /// Client HTTP per comunicare con il Order Service
+    /// </summary>
     public class OrderHttp : IOrderHttp
     {
         private readonly HttpClient _httpClient;
@@ -26,6 +29,9 @@ namespace ShopSaga.OrderService.ClientHttp
             };
         }
 
+        /// <summary>
+        /// Recupera un ordine specifico con gestione NotFound sicura
+        /// </summary>
         public async Task<OrderDTO?> GetOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -39,6 +45,7 @@ namespace ShopSaga.OrderService.ClientHttp
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
+                    // Ordine non trovato - comportamento normale, non errore
                     return null;
                 }
                 
@@ -50,6 +57,9 @@ namespace ShopSaga.OrderService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Recupera tutti gli ordini con fallback a lista vuota se nessun risultato
+        /// </summary>
         public async Task<IEnumerable<OrderDTO>> GetAllOrdersAsync(CancellationToken cancellationToken = default)
         {
             try
@@ -64,6 +74,7 @@ namespace ShopSaga.OrderService.ClientHttp
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
+                    // Nessun ordine presente - restituisce collezione vuota
                     return new List<OrderDTO>();
                 }
                 
@@ -75,6 +86,9 @@ namespace ShopSaga.OrderService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Recupera ordini per cliente specifico con gestione cliente senza ordini
+        /// </summary>
         public async Task<IEnumerable<OrderDTO>> GetOrdersByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken = default)
         {
             try
@@ -123,6 +137,9 @@ namespace ShopSaga.OrderService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Aggiorna un ordine esistente con gestione ordine non trovato
+        /// </summary>
         public async Task<OrderDTO?> UpdateOrderAsync(int orderId, UpdateOrderDTO updateOrderDto, CancellationToken cancellationToken = default)
         {
             try
@@ -139,6 +156,7 @@ namespace ShopSaga.OrderService.ClientHttp
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
+                    // Ordine da aggiornare non esistente
                     return null;
                 }
                 
@@ -151,6 +169,9 @@ namespace ShopSaga.OrderService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Elimina un ordine restituendo false se non esistente o gia eliminato
+        /// </summary>
         public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken cancellationToken = default)
         {
             try
@@ -165,6 +186,7 @@ namespace ShopSaga.OrderService.ClientHttp
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
+                    // Ordine già eliminato o mai esistito
                     return false;
                 }
                 
@@ -176,6 +198,9 @@ namespace ShopSaga.OrderService.ClientHttp
             }
         }
 
+        /// <summary>
+        /// Aggiorna solo lo stato di un ordine
+        /// </summary>
         public async Task<bool> UpdateOrderStatusAsync(int orderId, string status, CancellationToken cancellationToken = default)
         {
             try
@@ -190,10 +215,10 @@ namespace ShopSaga.OrderService.ClientHttp
                 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
+                    // Ordine non trovato - critico per SAGA
                     return false;
                 }
 
-                // In caso di errore, prova a leggere il corpo della risposta per un debug migliore
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new HttpRequestException($"Errore nella chiamata API: {response.StatusCode} - {errorContent}");
             }

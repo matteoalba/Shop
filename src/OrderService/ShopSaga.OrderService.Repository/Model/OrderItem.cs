@@ -22,7 +22,6 @@ namespace ShopSaga.OrderService.Repository.Model
         [Required]
         public decimal UnitPrice { get; set; }
 
-        // Navigation property
         [ForeignKey("OrderId")]
         public virtual Order Order { get; set; }
     }

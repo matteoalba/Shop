@@ -15,9 +15,9 @@ namespace ShopSaga.OrderService.Repository.Abstraction
         Task<Order> UpdateOrderAsync(Order order, CancellationToken cancellationToken = default);
         Task<bool> DeleteOrderAsync(int id, CancellationToken cancellationToken = default);
         Task<IEnumerable<Order>> GetAllOrdersAsync(CancellationToken cancellationToken = default);
-        Task<int> SaveChanges(CancellationToken cancellationToken = default);
         Task<Order> UpdateOrderWithItemsAsync(int orderId, string status, IEnumerable<OrderItemDTO> orderItems, CancellationToken cancellationToken = default);
         Task<List<int>> GetInvalidOrderItemIdsAsync(int orderId, IEnumerable<int> orderItemIds, CancellationToken cancellationToken = default);
         Task<bool> ValidateOrderItemsAsync(int orderId, IEnumerable<OrderItemDTO> orderItems, CancellationToken cancellationToken = default);
+        Task<int> SaveChanges(CancellationToken cancellationToken = default);
     }
 }

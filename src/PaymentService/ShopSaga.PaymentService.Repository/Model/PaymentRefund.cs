@@ -27,7 +27,6 @@ namespace ShopSaga.PaymentService.Repository.Model
         [Required]
         public DateTime UpdatedAt { get; set; }
 
-        // Navigation property
         [ForeignKey("PaymentId")]
         public virtual Payment Payment { get; set; }
     }

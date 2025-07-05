@@ -14,19 +14,18 @@ builder.Services.AddDbContext<PaymentDbContext>(options => options.UseSqlServer(
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IPaymentBusiness, PaymentBusiness>();
 
-// Configurazione HTTP Client per OrderService
+// HTTP client per OrderService
 builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 {
-    // In sviluppo usa localhost, in produzione/Docker usa il nome del servizio
-    var orderServiceUrl = builder.Configuration.GetValue<string>("OrderService:BaseUrl") ?? "http://localhost:5001/";
+    var orderServiceUrl = "http://localhost:5001/";
     client.BaseAddress = new Uri(orderServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
-// Configurazione HTTP Client per StockService
+// HTTP client per StockService
 builder.Services.AddHttpClient<IStockHttp, StockHttp>(client =>
 {
-    var stockServiceUrl = builder.Configuration.GetValue<string>("StockService:BaseUrl") ?? "http://localhost:5003/";
+    var stockServiceUrl = "http://localhost:5003/";
     client.BaseAddress = new Uri(stockServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
@@ -36,14 +35,12 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
     context.Database.EnsureCreated();
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

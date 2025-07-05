@@ -19,13 +19,11 @@ COPY ["OrderService/ShopSaga.OrderService.Shared/ShopSaga.OrderService.Shared.cs
 COPY ["StockService/ShopSaga.StockService.ClientHttp/ShopSaga.StockService.ClientHttp.csproj", "StockService/ShopSaga.StockService.ClientHttp/"]
 COPY ["StockService/ShopSaga.StockService.Shared/ShopSaga.StockService.Shared.csproj", "StockService/ShopSaga.StockService.Shared/"]
 
-# Restore delle dipendenze
 RUN dotnet restore "PaymentService/ShopSaga.PaymentService.WebApi/ShopSaga.PaymentService.WebApi.csproj"
 
-# Copia tutto il codice sorgente
 COPY . .
 
-# Build del progetto
+# Build 
 WORKDIR "/src/PaymentService/ShopSaga.PaymentService.WebApi"
 RUN dotnet build "ShopSaga.PaymentService.WebApi.csproj" -c Release -o /app/build
 

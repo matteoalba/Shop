@@ -43,7 +43,7 @@ namespace ShopSaga.PaymentService.Repository
                 
                 entity.Property(p => p.TransactionId)
                     .HasMaxLength(100)
-                    .IsRequired(false); // Nullable
+                    .IsRequired(false);
                 
                 entity.Property(p => p.CreatedAt)
                     .IsRequired()
@@ -80,7 +80,7 @@ namespace ShopSaga.PaymentService.Repository
                     .IsRequired()
                     .HasDefaultValueSql("GETDATE()");
 
-                // Foreign Key relationship
+                // Foreign Key tra PaymentRefund - Payment
                 entity.HasOne(pr => pr.Payment)
                     .WithMany()
                     .HasForeignKey(pr => pr.PaymentId)

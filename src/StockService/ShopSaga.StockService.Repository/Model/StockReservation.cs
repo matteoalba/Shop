@@ -28,7 +28,6 @@ namespace ShopSaga.StockService.Repository.Model
         [Required]
         public DateTime UpdatedAt { get; set; }
 
-        // Navigation property per il prodotto
         [ForeignKey("ProductId")]
         public virtual Product Product { get; set; }
     }

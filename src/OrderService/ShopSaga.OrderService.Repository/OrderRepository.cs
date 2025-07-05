@@ -10,6 +10,10 @@ using System.Threading.Tasks;
 
 namespace ShopSaga.OrderService.Repository
 {
+    /// <summary>
+    /// Repository per la gestione degli ordini
+    /// Gestisce operazioni CRUD e sincronizzazione stato tra ordini-items
+    /// </summary>
     public class OrderRepository : IOrderRepository
     {
         private readonly OrderDbContext _context;
@@ -71,9 +75,12 @@ namespace ShopSaga.OrderService.Repository
             return order;
         }
         
+        /// <summary>
+        /// Aggiorna un ordine con gestione completa degli items: add/update/remove
+        /// Mantiene la consistenza tra ordine e items ricalcolando il totale
+        /// </summary>
         public async Task<Order> UpdateOrderWithItemsAsync(int orderId, string status, IEnumerable<OrderItemDTO> orderItems, CancellationToken cancellationToken = default)
         {
-            // Recupera l'ordine esistente con tutti gli items
             var existingOrder = await _context.Orders
                 .Include(o => o.OrderItems)
                 .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
@@ -81,19 +88,17 @@ namespace ShopSaga.OrderService.Repository
             if (existingOrder == null)
                 throw new KeyNotFoundException($"Ordine con ID {orderId} non trovato");
             
-            // Aggiorna lo stato dell'ordine
             existingOrder.Status = status;
             existingOrder.UpdatedAt = DateTime.UtcNow;
             
             if (orderItems != null)
             {
-                // Ottieni tutti gli IDs degli item inclusi nella richiesta
                 var requestedItemIds = orderItems
                     .Where(i => i.Id > 0)
                     .Select(i => i.Id)
                     .ToHashSet();
                 
-                // 1. Rimuovi gli item che non sono presenti nella richiesta
+                // Rimuove items non più presenti nella richiesta
                 var itemsToRemove = existingOrder.OrderItems
                     .Where(item => !requestedItemIds.Contains(item.Id))
                     .ToList();
@@ -104,23 +109,22 @@ namespace ShopSaga.OrderService.Repository
                     _context.Entry(itemToRemove).State = EntityState.Deleted;
                 }
                 
-                // 2. Aggiorna gli item esistenti
+                // Aggiorna quantità e prezzo degli items esistenti
                 foreach (var itemDto in orderItems.Where(i => i.Id > 0))
                 {
                     var existingItem = existingOrder.OrderItems.FirstOrDefault(i => i.Id == itemDto.Id);
                     
                     if (existingItem != null)
                     {
-                        // Aggiorna solo le proprietà modificabili
+                        // Aggiorna solo quantità e prezzo, ProductId rimane immutabile
                         existingItem.Quantity = itemDto.Quantity;
                         existingItem.UnitPrice = itemDto.UnitPrice;
-                        // Non aggiorniamo ProductId per items esistenti
                         
                         _context.Entry(existingItem).State = EntityState.Modified;
                     }
                 }
                 
-                // 3. Aggiungi nuovi item
+                // Crea nuovi items per quelli con ID = 0
                 foreach (var newItemDto in orderItems.Where(i => i.Id == 0))
                 {
                     var newItem = new OrderItem
@@ -134,16 +138,19 @@ namespace ShopSaga.OrderService.Repository
                     existingOrder.OrderItems.Add(newItem);
                 }
                 
-                // 4. Ricalcola il totale dell'ordine
+                // Ricalcola il totale basandosi sui nuovi valori
                 existingOrder.TotalAmount = existingOrder.OrderItems.Sum(item => item.Quantity * item.UnitPrice);
             }
             
-            // Aggiorna l'ordine
             _context.Entry(existingOrder).State = EntityState.Modified;
             
             return existingOrder;
         }
         
+        /// <summary>
+        /// Identifica items con ID non validi per un ordine specifico
+        /// Utile per validazioni prima di operazioni di aggiornamento
+        /// </summary>
         public async Task<List<int>> GetInvalidOrderItemIdsAsync(int orderId, IEnumerable<int> orderItemIds, CancellationToken cancellationToken = default)
         {
             // Ottieni tutti gli ID degli OrderItem che appartengono all'ordine specificato
@@ -152,28 +159,26 @@ namespace ShopSaga.OrderService.Repository
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken);
 
-            // Restituisci gli ID che non appartengono all'ordine
             return orderItemIds.Where(id => !validItemIds.Contains(id)).ToList();
         }
         
         public async Task<bool> ValidateOrderItemsAsync(int orderId, IEnumerable<OrderItemDTO> orderItems, CancellationToken cancellationToken = default)
         {
             if (orderItems == null || !orderItems.Any())
-                return true; // Non ci sono item da validare
+                return true;
                 
-            // Estrai gli ID degli item con ID > 0 (item esistenti)
             var itemIdsToCheck = orderItems
                 .Where(i => i.Id > 0)
                 .Select(i => i.Id)
                 .ToList();
                 
             if (!itemIdsToCheck.Any())
-                return true; // Non ci sono item esistenti da validare
+                return true;
                 
-            // Controlla se ci sono ID non validi
             var invalidItemIds = await GetInvalidOrderItemIdsAsync(orderId, itemIdsToCheck, cancellationToken);
             
-            return !invalidItemIds.Any(); // Restituisce true se non ci sono ID non validi
+            // Valido se non ci sono ID che appartengono ad altri ordini
+            return !invalidItemIds.Any();
         }
     }
 }

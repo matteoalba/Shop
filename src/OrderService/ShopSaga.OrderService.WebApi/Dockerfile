@@ -19,10 +19,8 @@ COPY ["PaymentService/ShopSaga.PaymentService.ClientHttp/ShopSaga.PaymentService
 COPY ["StockService/ShopSaga.StockService.Shared/ShopSaga.StockService.Shared.csproj", "StockService/ShopSaga.StockService.Shared/"]
 COPY ["StockService/ShopSaga.StockService.ClientHttp/ShopSaga.StockService.ClientHttp.csproj", "StockService/ShopSaga.StockService.ClientHttp/"]
 
-# Restore
 RUN dotnet restore "OrderService/ShopSaga.OrderService.WebApi/ShopSaga.OrderService.WebApi.csproj"
 
-# Copia tutto il codice sorgente
 COPY . .
 
 WORKDIR "/src/OrderService/ShopSaga.OrderService.WebApi"
