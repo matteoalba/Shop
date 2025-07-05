@@ -17,7 +17,7 @@ builder.Services.AddScoped<IPaymentBusiness, PaymentBusiness>();
 // HTTP client per OrderService
 builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 {
-    var orderServiceUrl = "http://localhost:5001/";
+    var orderServiceUrl = builder.Configuration.GetValue<string>("Services:OrderService");
     client.BaseAddress = new Uri(orderServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
@@ -25,7 +25,7 @@ builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 // HTTP client per StockService
 builder.Services.AddHttpClient<IStockHttp, StockHttp>(client =>
 {
-    var stockServiceUrl = "http://localhost:5003/";
+    var stockServiceUrl = builder.Configuration.GetValue<string>("Services:StockService");
     client.BaseAddress = new Uri(stockServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });

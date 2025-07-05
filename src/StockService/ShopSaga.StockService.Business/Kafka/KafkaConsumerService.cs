@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,7 @@ namespace ShopSaga.StockService.Business.Kafka
             {
                 BootstrapServers = _settings.BootstrapServers,
                 GroupId = _settings.GroupId,
-                AutoOffsetReset = AutoOffsetReset.Latest,
+                AutoOffsetReset = AutoOffsetReset.Earliest,
                 EnableAutoCommit = false,
                 SocketConnectionSetupTimeoutMs = 10000,
                 SocketTimeoutMs = 30000,
@@ -85,7 +86,9 @@ namespace ShopSaga.StockService.Business.Kafka
 
         private async Task StartKafkaConsumerAsync(CancellationToken stoppingToken)
         {
-            await Task.Delay(5000, stoppingToken);
+            // Aspetta che Kafka sia completamente pronto
+            await WaitForKafkaHealthyAsync(stoppingToken);
+            
             _logger.LogInformation("Tentativo di connessione a Kafka con BootstrapServers: {BootstrapServers}, GroupId: {GroupId}, Topics: {OrderCreatedTopic}, {OrderCancelledTopic}",
                 _settings.BootstrapServers, _settings.GroupId, _settings.OrderCreatedTopic, _settings.OrderCancelledTopic);
 
@@ -254,6 +257,39 @@ namespace ShopSaga.StockService.Business.Kafka
             {
                 _logger.LogError(ex, "Errore durante l'elaborazione del messaggio dal topic {Topic}: {Message}", topic, message);
             }
+        }
+
+        private async Task WaitForKafkaHealthyAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Verifica stato kafka");
+            
+            for (int attempt = 1; attempt <= 20; attempt++)
+            {
+                try
+                {
+                    using var adminClient = new AdminClientBuilder(new AdminClientConfig 
+                    { 
+                        BootstrapServers = _settings.BootstrapServers,
+                        SocketTimeoutMs = 5000
+                    }).Build();
+                    
+                    var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(5));
+                    if (metadata.Brokers.Count > 0)
+                    {
+                        _logger.LogInformation("Kafka funziona, Brokers disponibili: {BrokerCount}", metadata.Brokers.Count);
+                        await Task.Delay(2000, stoppingToken);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Tentativo {Attempt}/20: Kafka non ancora pronto - {Error}", attempt, ex.Message);
+                }
+                
+                await Task.Delay(3000, stoppingToken);
+            }
+            
+            _logger.LogError("Kafka non raggiungibile dopo 20 tentativi. Continuo comunque...");
         }
     }
 }

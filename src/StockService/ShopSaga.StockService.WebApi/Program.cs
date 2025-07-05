@@ -20,7 +20,7 @@ builder.Services.AddHostedService<KafkaConsumerService>();
 // HTTP per order service
 builder.Services.AddHttpClient<IOrderHttp, OrderHttp>(client =>
 {
-    var orderServiceUrl = "http://localhost:5001/";
+    var orderServiceUrl = builder.Configuration.GetValue<string>("Services:OrderService");
     client.BaseAddress = new Uri(orderServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });

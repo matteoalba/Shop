@@ -22,7 +22,7 @@ builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
 // HTTP Client payment
 builder.Services.AddHttpClient<IPaymentHttp, PaymentHttp>(client =>
 {
-    var paymentServiceUrl = "https://localhost:5002/";
+    var paymentServiceUrl = builder.Configuration.GetValue<string>("Services:PaymentService");
     client.BaseAddress = new Uri(paymentServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
@@ -30,7 +30,7 @@ builder.Services.AddHttpClient<IPaymentHttp, PaymentHttp>(client =>
 // HTTP Client stock
 builder.Services.AddHttpClient<IStockHttp, StockHttp>(client =>
 {
-    var stockServiceUrl = "https://localhost:5003/";
+    var stockServiceUrl = builder.Configuration.GetValue<string>("Services:StockService");
     client.BaseAddress = new Uri(stockServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
