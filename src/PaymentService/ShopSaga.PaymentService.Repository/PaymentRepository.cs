@@ -1,6 +1,4 @@
-﻿using Microsoft.EntityF        }
-
-        public async Task<Payment> CreatePaymentAsync(Payment payment, CancellationToken cancellationToken = default)workCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ShopSaga.PaymentService.Repository.Abstraction;
 using ShopSaga.PaymentService.Repository.Model;
 using ShopSaga.PaymentService.Shared;
