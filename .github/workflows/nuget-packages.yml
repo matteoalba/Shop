@@ -41,6 +41,9 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+        source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+      env:
+        NUGET_AUTH_TOKEN: ${{ secrets.TOKEN }}
 
     - name: Restore dependencies
       run: dotnet restore ${{ matrix.project.path }}
@@ -55,8 +58,4 @@ jobs:
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
       run: |
         dotnet nuget push ./packages/*.nupkg \
-          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
-          --api-key ${{ secrets.TOKEN }} \
           --skip-duplicate
-      env:
-        NUGET_AUTH_TOKEN: ${{ secrets.TOKEN }}
