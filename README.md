@@ -1,6 +1,6 @@
 # ShopSaga - E-Commerce Microservices Application
 
-Questo progetto è un'applicazione e-commerce basata su microservizi che implementa il **pattern SAGA coreografico** per transazioni distribuite.
+Questo progetto è un'applicazione e-commerce basata su microservizi che implementa il **pattern SAGA** per transazioni distribuite.
 
 ## Architettura
 
@@ -12,9 +12,9 @@ L'applicazione è composta da tre microservizi principali che comunicano tramite
 
 ### Struttura dei Servizi
 
-Ciascun microservizio segue una **struttura Clean Architecture a 5 progetti**:
+Ciascun microservizio segue una **struttura a 5 progetti**:
 
-- **WebApi**: API REST, controller, Swagger, health checks
+- **WebApi**: API REST, controller, Swagger
 - **Business**: Logica di business, gestione SAGA, validazioni
 - **ClientHttp**: Client HTTP per comunicazioni sincrone tra servizi
 - **Repository**: Accesso al database tramite Entity Framework Core
@@ -114,12 +114,12 @@ ShopSaga/
 
 ```bash
 # Clone del repository
-git clone <repository-url>
+git clone https://github.com/matteoalba/Shop.git
 cd Shop
 
 # Avvio con Docker Compose
 cd docker
-docker-compose up -d
+docker-compose up -d --build
 
 # Verifica che tutti i container siano attivi
 docker-compose ps
@@ -209,14 +209,6 @@ docker-compose ps
 - **Test 5.2**: Recovery automatico Background Service dopo interruzione
 - **Test 5.3**: Gestione topic Kafka mancanti con graceful degradation
 
-#### Performance Metrics
-
-- **Tempo medio creazione ordine**: ~500ms
-- **Tempo prenotazione stock (Background)**: 10s
-- **Tempo processing payment**: ~200ms
-- **Tempo compensazione completa**: 5-10s
-- **Recovery time dopo Kafka restart**: ~30s
-
 #### Event Flow Processing
 
 **OrderCreatedEvent Processing:**
@@ -276,7 +268,7 @@ Nel metodo `UpdateOrderAsync`, Entity Framework presenta un comportamento implic
 - Perdita accidentale del `TotalAmount` durante transizioni SAGA
 
 **Soluzione Implementata:**
-Creazione di un metodo dedicato `UpdateOrderStatusAsync` che aggiorna solo lo stato senza toccare gli items.
+Cambiamento a `UpdateOrderAsync`, in modo che non eliminasse piu gli elementi non inseriti.
 
 ### 2. Gestione Delete nello StockService
 
