@@ -13,13 +13,15 @@ services:
       - shop-network
     restart: always
 
-  # Order microservice - Using GitHub Container Registry
+  # Order microservice
   order-service:
     image: ghcr.io/matteoalba/shop-saga-order-service:latest
     ports:
       - "5001:8080"
     environment:
       - ConnectionStrings__OrderServiceDb=Server=order-db;Database=OrderDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - StockService__BaseUrl=http://stock-service:8080/
+      - PaymentService__BaseUrl=http://payment-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
@@ -33,6 +35,8 @@ services:
     depends_on:
       - order-db
       - kafka
+      - stock-service
+      - payment-service
 
   payment-db:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -47,7 +51,7 @@ services:
       - shop-network
     restart: always
 
-  # Payment microservice - Using GitHub Container Registry
+  # Payment microservice
   payment-service:
     image: ghcr.io/matteoalba/shop-saga-payment-service:latest
     ports:
@@ -55,6 +59,7 @@ services:
     environment:
       - ConnectionStrings__PaymentServiceDb=Server=payment-db;Database=PaymentDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
       - OrderService__BaseUrl=http://order-service:8080/
+      - StockService__BaseUrl=http://stock-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
@@ -64,6 +69,7 @@ services:
     depends_on:
       - payment-db
       - order-service
+      - stock-service
 
   stock-db:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -78,7 +84,7 @@ services:
       - shop-network
     restart: always
 
-  # Stock microservice - Using GitHub Container Registry
+  # Stock microservice
   stock-service:
     image: ghcr.io/matteoalba/shop-saga-stock-service:latest
     ports:
@@ -99,7 +105,7 @@ services:
       - stock-db
       - kafka
 
-  # Adminer - Database management UI
+  # Adminer
   adminer:
     image: adminer:latest
     restart: always
@@ -112,7 +118,7 @@ services:
       - payment-db
       - stock-db
 
-  # Kafka services
+  # Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     hostname: zookeeper

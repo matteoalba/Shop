@@ -146,8 +146,10 @@ di rimuovere items per errore.
 
 
 TODO:
- - Creare immagine di ogni microservizio da mettere poi su github.
-
+ - Fix a 
+        2025-07-05 16:05:21 fail: ShopSaga.StockService.ClientHttp.StockHttp[0]
+2025-07-05 16:05:21       Errore durante la chiamata HTTP per verificare disponibilità prodotto 550e8400-e29b-41d4-a716-446655440001
+2025-07-05 16:05:21       System.Net.Http.HttpRequestException: Connection refused (localhost:5003)
 
 Order:
 
