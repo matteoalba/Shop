@@ -20,8 +20,8 @@ services:
       - "5001:8080"
     environment:
       - ConnectionStrings__OrderServiceDb=Server=order-db;Database=OrderDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
-      - StockService__BaseUrl=http://stock-service:8080/
-      - PaymentService__BaseUrl=http://payment-service:8080/
+      - Services__StockService=http://stock-service:8080/
+      - Services__PaymentService=http://payment-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
@@ -35,8 +35,6 @@ services:
     depends_on:
       - order-db
       - kafka
-      - stock-service
-      - payment-service
 
   payment-db:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -58,8 +56,8 @@ services:
       - "5002:8080"
     environment:
       - ConnectionStrings__PaymentServiceDb=Server=payment-db;Database=PaymentDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
-      - OrderService__BaseUrl=http://order-service:8080/
-      - StockService__BaseUrl=http://stock-service:8080/
+      - Services__OrderService=http://order-service:8080/
+      - Services__StockService=http://stock-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
@@ -68,8 +66,6 @@ services:
     restart: always
     depends_on:
       - payment-db
-      - order-service
-      - stock-service
 
   stock-db:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -91,6 +87,8 @@ services:
       - "5003:8080"
     environment:
       - ConnectionStrings__StockServiceDb=Server=stock-db;Database=StockDb;User Id=sa;Password=Pass@word1;TrustServerCertificate=True
+      - Services__OrderService=http://order-service:8080/
+      - Services__PaymentService=http://payment-service:8080/
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_HTTP_PORTS=8080
