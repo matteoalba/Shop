@@ -1,5 +1,10 @@
 **/bin/
+bin/
 **/obj/
-.vscode
+obj/
+.vscode/
 Info.txt
-NuGet.local.config
+NuGet.local.config 
+**/*.user
+**/*.suo
+*.log
