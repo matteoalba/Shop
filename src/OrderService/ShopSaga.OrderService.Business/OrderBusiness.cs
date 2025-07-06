@@ -445,16 +445,16 @@ namespace ShopSaga.OrderService.Business
                     var quantityDelta = updatedItem.Quantity - currentItem.Quantity;
 
                     _logger.LogInformation("Item aggiornato: Prodotto {ProductId}, quantità delta {Delta}", 
-                        updatedItem.ProductId, quantityDelta);
+                        currentItem.ProductId, quantityDelta);
 
                     if (quantityDelta > 0)
                     {
                         // Aumentata quantità: controlla disponibilità per il delta
-                        var isAvailable = await _stockHttp.IsProductAvailableAsync(updatedItem.ProductId, quantityDelta, cancellationToken);
+                        var isAvailable = await _stockHttp.IsProductAvailableAsync(currentItem.ProductId, quantityDelta, cancellationToken);
                         if (!isAvailable)
                         {
                             _logger.LogWarning("Prodotto {ProductId} non disponibile per quantità aggiuntiva {Delta}", 
-                                updatedItem.ProductId, quantityDelta);
+                                currentItem.ProductId, quantityDelta);
                             await RollbackOperations(orderId, operationsExecuted, cancellationToken);
                             return false;
                         }
@@ -462,7 +462,7 @@ namespace ShopSaga.OrderService.Business
                         // Creare un nuova prenotazione per il delta aggiuntivo
                         var reserveDto = new ReserveStockDTO
                         {
-                            ProductId = updatedItem.ProductId,
+                            ProductId = currentItem.ProductId,
                             OrderId = orderId,
                             Quantity = quantityDelta
                         };
@@ -471,27 +471,27 @@ namespace ShopSaga.OrderService.Business
                         if (deltaReservation == null)
                         {
                             _logger.LogError("Errore nella creazione prenotazione aggiuntiva per Prodotto {ProductId}, Delta {Delta}", 
-                                updatedItem.ProductId, quantityDelta);
+                                currentItem.ProductId, quantityDelta);
                             await RollbackOperations(orderId, operationsExecuted, cancellationToken);
                             return false;
                         }
                         
                         operationsExecuted.Add(deltaReservation.Id); 
                         _logger.LogInformation("Prenotazione stock aggiuntiva creata per Prodotto {ProductId}, Delta {Delta}, Reservation ID {ReservationId}", 
-                            updatedItem.ProductId, quantityDelta, deltaReservation.Id);
+                            currentItem.ProductId, quantityDelta, deltaReservation.Id);
                     }
                     else if (quantityDelta < 0)
                     {
                         // Diminuita quantità: riduci la prenotazione esistente
                         var existingReservations = await _stockHttp.GetStockReservationsByOrderAsync(orderId, cancellationToken);
-                        var reservationToReduce = existingReservations.Where(r => r.ProductId == updatedItem.ProductId).FirstOrDefault();
+                        var reservationToReduce = existingReservations.Where(r => r.ProductId == currentItem.ProductId).FirstOrDefault();
                         
                         if (reservationToReduce != null)
                         {
                             var cancelled = await _stockHttp.CancelStockReservationAsync(reservationToReduce.Id, cancellationToken);
                             if (!cancelled)
                             {
-                                _logger.LogError("Errore nella cancellazione prenotazione esistente per Prodotto {ProductId}", updatedItem.ProductId);
+                                _logger.LogError("Errore nella cancellazione prenotazione esistente per Prodotto {ProductId}", currentItem.ProductId);
                                 await RollbackOperations(orderId, operationsExecuted, cancellationToken);
                                 return false;
                             }
@@ -499,7 +499,7 @@ namespace ShopSaga.OrderService.Business
                             // Crea nuova prenotazione con quantità aggiornata
                             var newReserveDto = new ReserveStockDTO
                             {
-                                ProductId = updatedItem.ProductId,
+                                ProductId = currentItem.ProductId,
                                 OrderId = orderId,
                                 Quantity = updatedItem.Quantity
                             };
@@ -508,19 +508,19 @@ namespace ShopSaga.OrderService.Business
                             if (newReservation == null)
                             {
                                 _logger.LogError("Errore nella ricreazione prenotazione per Prodotto {ProductId}, Nuova quantità {Quantity}", 
-                                    updatedItem.ProductId, updatedItem.Quantity);
+                                    currentItem.ProductId, updatedItem.Quantity);
                                 await RollbackOperations(orderId, operationsExecuted, cancellationToken);
                                 return false;
                             }
                             
                             operationsExecuted.Add(newReservation.Id);
                             _logger.LogInformation("Prenotazione stock ridotta per Prodotto {ProductId}, Nuova quantità {Quantity}, Reservation ID {ReservationId}", 
-                                updatedItem.ProductId, updatedItem.Quantity, newReservation.Id);
+                                currentItem.ProductId, updatedItem.Quantity, newReservation.Id);
                         }
                         else
                         {
                             _logger.LogWarning("Nessuna prenotazione esistente trovata per Prodotto {ProductId} dell'ordine {OrderId}", 
-                                updatedItem.ProductId, orderId);
+                                currentItem.ProductId, orderId);
                         }
                     }
                 }

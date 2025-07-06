@@ -47,7 +47,37 @@ namespace ShopSaga.StockService.ClientHttp
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<bool>(_jsonOptions, cancellationToken);
+                    // Leggi il contenuto come stringa per gestire risposte non-JSON
+                    var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                    bool result;
+                    
+                    // Prova prima a deserializzare come JSON, poi fallback su stringa
+                    if (content.Trim().StartsWith("{") || content.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) || content.Trim().Equals("false", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (bool.TryParse(content.Trim(), out result))
+                        {
+                            // Parsing come boolean riuscito
+                        }
+                        else
+                        {
+                            // Prova parsing JSON
+                            try
+                            {
+                                result = JsonSerializer.Deserialize<bool>(content, _jsonOptions);
+                            }
+                            catch
+                            {
+                                // Se tutto fallisce, considera successo se status è 200
+                                result = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: considera successo se status è 200
+                        result = true;
+                    }
+                    
                     _logger.LogInformation("Conferma prenotazioni stock ordine {OrderId}: {Result}", orderId, result ? "Success" : "Failed");
                     return result;
                 }
@@ -78,7 +108,37 @@ namespace ShopSaga.StockService.ClientHttp
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<bool>(_jsonOptions, cancellationToken);
+                    // Leggi il contenuto come stringa per gestire risposte non-JSON
+                    var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                    bool result;
+                    
+                    // Prova prima a deserializzare come JSON, poi fallback su stringa
+                    if (content.Trim().StartsWith("{") || content.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) || content.Trim().Equals("false", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (bool.TryParse(content.Trim(), out result))
+                        {
+                            // Parsing come boolean riuscito
+                        }
+                        else
+                        {
+                            // Prova parsing JSON
+                            try
+                            {
+                                result = JsonSerializer.Deserialize<bool>(content, _jsonOptions);
+                            }
+                            catch
+                            {
+                                // Se tutto fallisce, considera successo se status è 200
+                                result = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: considera successo se status è 200
+                        result = true;
+                    }
+                    
                     _logger.LogInformation("Cancellazione prenotazioni stock ordine {OrderId}: {Result}", orderId, result ? "Success" : "Failed");
                     return result;
                 }
@@ -137,7 +197,37 @@ namespace ShopSaga.StockService.ClientHttp
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<bool>(_jsonOptions, cancellationToken);
+                    // Leggi il contenuto come stringa per gestire risposte non-JSON
+                    var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                    bool result;
+                    
+                    // Prova prima a deserializzare come JSON, poi fallback su stringa
+                    if (content.Trim().StartsWith("{") || content.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) || content.Trim().Equals("false", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (bool.TryParse(content.Trim(), out result))
+                        {
+                            // Parsing come boolean riuscito
+                        }
+                        else
+                        {
+                            // Prova parsing JSON
+                            try
+                            {
+                                result = JsonSerializer.Deserialize<bool>(content, _jsonOptions);
+                            }
+                            catch
+                            {
+                                // Se tutto fallisce, considera non disponibile per sicurezza
+                                result = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: considera non disponibile per sicurezza
+                        result = false;
+                    }
+                    
                     _logger.LogInformation("Disponibilità prodotto {ProductId} (qty {Quantity}): {Available}", productId, quantity, result);
                     return result;
                 }

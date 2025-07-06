@@ -208,6 +208,12 @@ namespace ShopSaga.OrderService.WebApi.Controllers
             _logger.LogInformation("Ricevuta richiesta di aggiornamento stato per ordine {OrderId} a {Status}", 
                 orderId, updateOrderDto?.Status);
             
+            if (updateOrderDto == null || string.IsNullOrWhiteSpace(updateOrderDto.Status))
+            {
+                _logger.LogWarning("DTO di aggiornamento non valido per ordine {OrderId}", orderId);
+                return BadRequest("Status is required");
+            }
+            
             try 
             {
                 var result = await _orderBusiness.UpdateOrderStatusAsync(orderId, updateOrderDto.Status, cancellationToken);
