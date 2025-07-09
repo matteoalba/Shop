@@ -76,18 +76,18 @@ Il progetto implementa il **pattern SAGA coreografico** (senza orchestratore cen
 ## Struttura del Progetto
 
 ```plaintext
-ShopSaga/
+Shop/
 ├── src/
 │   ├── OrderService/
-│   │   ├── ShopSaga.OrderService.WebApi/         # API Controller, Swagger
-│   │   ├── ShopSaga.OrderService.Business/       # Business Logic, SAGA
+│   │   ├── ShopSaga.OrderService.WebApi/         # Order API 
+│   │   ├── ShopSaga.OrderService.Business/       # Order Logic, Kafka Producer
 │   │   ├── ShopSaga.OrderService.ClientHttp/     # HTTP Clients
-│   │   ├── ShopSaga.OrderService.Repository/     # EF Core, DbContext
-│   │   └── ShopSaga.OrderService.Shared/         # DTO, Events, OrderStatus
+│   │   ├── ShopSaga.OrderService.Repository/     # Order Repository
+│   │   └── ShopSaga.OrderService.Shared/         # Order DTO, Events, OrderStatus
 │   ├── PaymentService/
 │   │   ├── ShopSaga.PaymentService.WebApi/       # Payment API
 │   │   ├── ShopSaga.PaymentService.Business/     # Payment Logic, Pivot
-│   │   ├── ShopSaga.PaymentService.ClientHttp/   # Service Clients
+│   │   ├── ShopSaga.PaymentService.ClientHttp/   # HTTP Clients
 │   │   ├── ShopSaga.PaymentService.Repository/   # Payment Repository
 │   │   └── ShopSaga.PaymentService.Shared/       # Payment DTO
 │   └── StockService/
@@ -97,9 +97,10 @@ ShopSaga/
 │       ├── ShopSaga.StockService.Repository/     # Stock Repository
 │       └── ShopSaga.StockService.Shared/         # Stock DTO
 ├── docker/
-│   ├── docker-compose.yml                       # Orchestrazione completa
+│   ├── docker-compose.production.yml             # Prod docker
+│   ├── docker-compose.dev.yml                    # Dev docker
 ├── sql/
-│   └── init.sql                                  # Script inizializzazione DB
+│   └── init.sql                                  # Dimostrazione struttura database
 └── README.md
 ```
 
@@ -108,7 +109,6 @@ ShopSaga/
 ### Prerequisiti
 
 - **Docker Desktop** installato e in esecuzione
-- **PowerShell** (per test automatici)
 
 ### 1. Avvio Rapido
 
@@ -119,10 +119,13 @@ cd Shop
 
 # Avvio con Docker Compose
 cd docker
-docker-compose up -d --build
+docker compose -f .\docker-compose.production.yml up -d
 
 # Verifica che tutti i container siano attivi
-docker-compose ps
+docker compose ps
+
+# Ferma tutti i container
+docker compose -f .\docker-compose.production.yml down
 ```
 
 ### 2. Accesso alle Interfacce
@@ -137,29 +140,30 @@ docker-compose ps
 
 - **Kafka UI**: [http://localhost:8080](http://localhost:8080) - Monitoring Kafka topics e messaggi
 - **Adminer**: [http://localhost:8081](http://localhost:8081) - Database web interface
-  - Server: `sqlserver`, Username: `sa`, Password: `Pass@word1`
+  - Sistema: `MS SQL`, Username: `sa`, Password: `Pass@word1`
+  - Servers: `order-db`, `payment-db` e `stock-db`
 
 ## Funzionalità Implementate
 
-## OrderService
+### OrderService (Producer)
 
 - Creazione ordini con validazione stock asincrona  
 - Cancellazione ordini con compensazione SAGA completa  
 - Publishing eventi Kafka (`OrderCreated`, `OrderCancelled`) con logica di retry  
 
-## StockService
+### StockService (Consumer)
 
 - Gestione prodotti e inventario con Entity Framework  
-- Background Service Kafka Consumer con polling resiliente (intervallo 10s)  
+- Background Service Kafka Consumer con polling (intervallo 10s)  
 - Prenotazioni stock automatiche da eventi `order-created`  
 - Compensazione stock (rilascio prenotazioni) da eventi `order-cancelled`  
-- Prevenzione overselling con controllo real-time su `QuantityInStock`  
+- Prevenzione dell'overselling con controllo su `QuantityInStock`  
 - Multi-topic subscription (`order-created`, `order-cancelled`)  
 - Gestione assenza topic con degradazione controllata  
 
-## PaymentService
+### PaymentService
 
-- Processing pagamenti (punto pivot della SAGA, non reversibile)  
+- Processing pagamenti (punto pivot della SAGA)  
 - Refund e cancellazione con compensazione stock coordinata  
 - Conferma definitiva prenotazioni stock post-payment  
 - Gestione completa del ciclo di vita del pagamento  
@@ -167,11 +171,10 @@ docker-compose ps
 
 ## Comunicazione Inter-Service
 
-- Kafka Topics: `order-created`, `order-cancelled` con configurazione resiliente  
-- HTTP Client per coordinamento sincrono con timeout gestiti  
-- Retry logic per resilienza di rete (3 tentativi con backoff)  
-- Error handling robusto con logging strutturato  
-- Correlation ID per tracing distribuito  
+- Kafka Topics: `order-created`, `order-cancelled`.  
+- HTTP Client.  
+- Retry logic (3 tentativi con backoff)  
+- Error handling con logging
 
 ## Test e Validazione
 
@@ -230,7 +233,7 @@ docker-compose ps
 #### Payment Service Pivot Point
 
 ```csharp
-  // STEP 1: Processa il pagamento internamente
+  // STEP 1: Punto di pre-pivot, o funziona o rollback totale
   var payment = await _paymentRepository.ProcessPaymentAsync(orderId, cancellationToken);
   await _paymentRepository.SaveChanges(cancellationToken);
   
@@ -297,18 +300,17 @@ Complessità nella gestione corretta delle transazioni di compensazione:
 **Soluzione Implementata:**
 
 - **Punto Pivot chiaro**: PaymentService come punto di non ritorno
-- **Compensazione Before-Pivot**: Annullamento completo (rilascio stock + cancellazione ordine)
-- **Compensazione After-Pivot**: Solo refund, stock già confermato
+- **Compensazione pre-Pivot**: Annullamento completo (rilascio stock + cancellazione ordine)
+- **Compensazione dopo-Pivot**: Solo refund, stock già confermato
 - **Idempotenza**: Tutte le operazioni di compensazione sono sicure da ripetere
 
 ### 4. Implementazione Kafka Background Service
 
 **Problema Identificato:**
-Gestione robusta del consumer Kafka in ambiente distribuito:
+Gestione del consumer Kafka:
 
 - Connessione resiliente a Kafka broker
 - Gestione topic inesistenti o temporaneamente non disponibili
-- Polling efficiente senza sovraccarico CPU
 - Gestione concorrenza e thread safety
 
 **Problemi Specifici Risolti:**
@@ -318,11 +320,11 @@ Gestione robusta del consumer Kafka in ambiente distribuito:
 - **Problema**: Polling troppo frequente causava overhead CPU
 - **Soluzione**: Interval 10 secondi con backoff esponenziale su errori
 
-#### 4.2 Retry Logic e Resilienza
+#### 4.2 Retry Logic
 
 - **HTTP Retry**: 3 tentativi con backoff per chiamate inter-service
 - **Kafka Reconnection**: Restart automatico consumer su connection loss
-- **Error Isolation**: Un evento fallito non blocca il processing degli altri
+- **Isolamento dell'errore**: Un evento fallito non blocca il processing degli altri
 
 #### **Infrastruttura Docker**
 
@@ -335,4 +337,25 @@ Gestione robusta del consumer Kafka in ambiente distribuito:
 - **9092**: Kafka Broker
 - **2181**: Zookeeper
 - **8081**: Kafka UI
-- **8082**: Adminer (DB Admin)
+- **8082**: Adminer
+
+## Known Issues e Limitazioni
+
+- **Assenza di Autenticazione e Autorizzazione**:  
+  In questo momento l'applicazione non implementa nessun meccanismo di autenticazione o autorizzazione. Tutte le API sono pubbliche e accessibili da chiunque, senza nessuna autorizzazione.
+
+- **Avvio dei Servizi**:  
+  Al primo avvio tramite docker compose, è necessario attendere che tutti i container siano completamente operativi prima di effettuare qualsiasi richiesta.  
+  In caso contrario, potrebbe occorrere qualche errore non controllato.
+
+- **Consistenza solo eventuale (no transazioni ACID distribuite)**:  
+  In caso di errori intermedi o rollback, per qualche secondo i dati tra i vari microservizi potrebbero risultare incoerenti.
+
+- **Errori di rete e timeout tra servizi**:  
+  Se una chiamata HTTP tra microservizi va in timeout o fallisce per problemi di rete, il sistema prova a ripetere l'operazione con il retry. Tuttavia, in alcuni casi, un'operazione potrebbe essere eseguita più volte, portando a situazioni non controllate.
+
+- **Chiamate API DELETE**:  
+  In tutti e 3 i microservizi è presente una chiamata HTTP DELETE.
+  Questa chiamata potrebbe essere "fatale", perchè è una chiamata che potrebbe essere in grado di portare a errori non correggibili automaticamente dal programma. Inoltre potrebbe portare a stati non consistenti.
+  Un esempio: Una volta creato l'ordine, con stockReserved, e dopoodichè creo un pagamento, se vado ad utilizzare la chiamata API DELETE su ordine, ci sarà una situazione in cui il pagamento sarò in stato pending senza però un ordine.
+  Questo perchè generalmente questo metodo non dovrebbe quasi mai essere utilizzato, soltanto in determinate situazioni, come in situazioni di deadlock/stallo.
