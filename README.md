@@ -138,8 +138,8 @@ docker compose -f .\docker-compose.production.yml down
 
 #### Monitoring Tools
 
-- **Kafka UI**: [http://localhost:8080](http://localhost:8080) - Monitoring Kafka topics e messaggi
-- **Adminer**: [http://localhost:8081](http://localhost:8081) - Database web interface
+- **Kafka UI**: [http://localhost:8080](http://localhost:8081) - Monitoring Kafka topics e messaggi
+- **Adminer**: [http://localhost:8081](http://localhost:8082) - Interfaccia web database
   - Sistema: `MS SQL`, Username: `sa`, Password: `Pass@word1`
   - Servers: `order-db`, `payment-db` e `stock-db`
 
